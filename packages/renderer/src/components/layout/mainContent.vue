@@ -11,12 +11,8 @@
     </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-export default defineComponent({
-    name: 'App',
-    components: {},
-});
+<script lang="ts" setup>
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+</style>
