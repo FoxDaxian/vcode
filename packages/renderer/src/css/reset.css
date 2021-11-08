@@ -1,0 +1,83 @@
+html,
+body,
+h1,
+h2,
+h3,
+h4,
+div,
+p,
+ol,
+ul,
+li,
+span,
+em,
+b,
+i,
+strong,
+img,
+a,
+input,
+select,
+dl,
+dd,
+dt,
+header,
+footer,
+textarea,
+button,
+input {
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+}
+
+body {
+    width: 100%;
+    line-height: 1;
+    font-family: 'PingFang SC', 'Helvetica Neue', Helvetica, Arial, 'Microsoft YaHei', sans-serif;
+    font-size: 16px;
+    width: 100%;
+    overflow-x: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow-y: auto;
+}
+
+ol,
+ul,
+li {
+    list-style: none;
+}
+
+a {
+    text-decoration: none;
+}
+
+input,
+textarea,
+button {
+    background: transparent;
+    -webkit-appearance: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+button {
+    border: none;
+    outline: none;
+}
+
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+    color: #d1cece;
+}
+
+textarea,
+input,
+select {
+    resize: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    border-radius: 0;
+}
