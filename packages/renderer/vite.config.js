@@ -5,7 +5,50 @@ import autoImport from 'rollup-plugin-auto-import';
 import { join } from 'path';
 import { builtinModules } from 'module';
 import vue from '@vitejs/plugin-vue';
+import Client from '../utils/socket/Client';
+import event from 'events';
+// import conpiler from '@vue/compiler-sfc';
 
+class MyEmitter extends event.EventEmitter {}
+
+const myEmitter = new MyEmitter();
+
+const client = new Client();
+client.connect();
+
+client.on('sendVm', (data) => {
+    myEmitter.emit(data, data);
+});
+
+function getvm(event) {
+    return new Promise((res) => {
+        myEmitter.once(event, (data) => {
+            res(data);
+        });
+    });
+}
+
+// 把vite-plugin过程拿过来，即可作为组件进行渲染
+const code = `
+<template>
+    <div class="test">虚拟模块</div>
+</template>
+
+<script lang="ts" setup>
+console.log('虚拟模块');
+</script>
+
+<style lang="less" scoped>
+.test{
+    color: red;
+}
+</style>
+`;
+//     filename: 's.vue',
+//     sourceMap: false
+// const res = conpiler.parse(code, {
+// });
+// console.log(res);
 const PACKAGE_ROOT = __dirname;
 
 /**
@@ -23,6 +66,23 @@ const config = {
     },
     plugins: [
         vue(),
+        {
+            resolveId(source) {
+                if (source.startsWith('@vcode_virtual_module')) {
+                    return source;
+                }
+                return null;
+            },
+            async load(id) {
+                if (id.startsWith('@vcode_virtual_module')) {
+                    client.send('fetchVm', id);
+                    const vm = await getvm(id);
+                    return `export default {vm: '${vm}'}`;
+                }
+                return null;
+            }
+        },
+
         autoImport({
             exclude: [/\.less\b/, /\.html\b/],
             inject: {
@@ -57,6 +117,7 @@ const config = {
     ],
     base: '',
     server: {
+        port: 6661,
         fs: {
             strict: true
         }

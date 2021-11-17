@@ -3,15 +3,15 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "/@/*": [
-        "./src/*"
+      "@/*": [
+        "./*"
       ]
     },
   },
   "files": [
-    "src/index.ts"
+    "src/index.ts",
   ],
   "include": [
-    "../../types/**/*.d.ts"
-  ]
+    "../../types/**/*.d.ts",
+  ],
 }
