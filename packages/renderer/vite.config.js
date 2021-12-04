@@ -44,9 +44,9 @@ console.log('虚拟模块');
 }
 </style>
 `;
+// const res = conpiler.parse(code, {
 //     filename: 's.vue',
 //     sourceMap: false
-// const res = conpiler.parse(code, {
 // });
 // console.log(res);
 const PACKAGE_ROOT = __dirname;
