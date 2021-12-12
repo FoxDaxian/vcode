@@ -1,20 +1,12 @@
 <template>
     <div class="editor-wrap" v-if="visible">
+        <div class="header-info">
+            <input class="name" type="text" v-model="componentName" />
+        </div>
         <div class="editor" ref="editor"></div>
         <div class="btns">
-            <div
-                class="confim"
-                @click="
-                    update({
-                        el,
-                        id,
-                        child: 'child',
-                        source: templateVal
-                    })
-                "
-            >
-                update
-            </div>
+            <div class="confim" @click="_update">update</div>
+            <div class="cancel" @click="cancel">close</div>
         </div>
     </div>
 </template>
@@ -25,10 +17,10 @@ export default defineComponent({
     name: 'myEditor',
     emits: ['destroy'],
     props: {
-        el: {
-            type: Object,
-            default() {
-                return {};
+        pos: {
+            type: Array,
+            defaylt() {
+                return [];
             }
         },
         id: {
@@ -54,11 +46,11 @@ export default defineComponent({
             update: ({ parent: string, child: string, source: string }) => void;
             cancel: () => void;
             id: string;
-            el: HTMLElement;
         },
         context: { emit: () => void }
     ) {
         const visible = ref(true);
+        const componentName = ref('');
 
         const close = () => {
             visible.value = false;
@@ -66,19 +58,18 @@ export default defineComponent({
         };
 
         const editor = ref(null);
-        
 
         const templateVal = [
             '<template>',
             '    <input type="hidden" class="hidden">',
-            '    <div>你好</div>',
+            '    <div>我是被用户编辑后插入的</div>',
             '    <div><h2>是的</h2></div>',
             '</template>',
             '<style lang="less" scoped>',
             '.hidden {',
             '    display: none;',
             '}',
-            '</style>',
+            '</style>'
         ].join('\n');
         onMounted(async () => {
             await nextTick();
@@ -88,7 +79,21 @@ export default defineComponent({
                 theme: 'vs-dark'
             });
         });
+        const _update = () => {
+            if (!componentName.value) {
+                return;
+            }
+            props.update({
+                pos: props.pos,
+                id: props.id,
+                child: componentName.value,
+                source: templateVal
+            });
+        };
+
         return {
+            _update,
+            componentName,
             editor,
             close,
             visible,
@@ -111,6 +116,16 @@ export default defineComponent({
     display: flex;
     flex-direction: column;
 }
+.header-info {
+    box-sizing: border-box;
+    padding: 10px 0;
+    input {
+        width: 100%;
+        height: 30px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+}
 .editor {
     flex: 1;
 }
@@ -120,6 +135,17 @@ export default defineComponent({
     display: flex;
 }
 .confim {
+    border: 1px solid #0066ff;
+    padding: 0 12px;
+    color: #0066ff;
+    cursor: pointer;
+    text-align: center;
+
+    box-sizing: border-box;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.cancel {
     border: 1px solid #0066ff;
     padding: 0 12px;
     color: #0066ff;

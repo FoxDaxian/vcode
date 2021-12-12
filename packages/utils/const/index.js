@@ -1,0 +1,1 @@
+export const VmProfix = '@vcode_virtual_module';

@@ -1,21 +1,30 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import MagicString from 'magic-string';
 import { join, parse, relative, normalize, resolve } from 'path';
-import slash from 'slash';
-import hash from 'hash-sum';
 import { readFileSync, writeFileSync } from 'fs';
 import sfc2source from './sfc2source';
-import { URL } from 'url';
-import { parse as sfcParse } from '@vue/compiler-sfc';
+import { parse as sfcParse } from '@vue/compiler-dom';
 import { fork } from 'child_process';
 import Server from '../../utils/socket/Server.js';
+import { VmProfix } from '../../utils/const/index';
+import getAstPos from './utils/getAstPos';
 
+const virtual_module = new Map<string, Vm>();
 // ipc
 const server = new Server();
 
+const defaultCom = [
+    '<template>',
+    '    <div>未找到对应组件，请检查后重试</div>',
+    '</template>'
+].join('\n');
 server.connect().then(() => {
     // 响应vite的虚拟模块请求
     server.on('fetchVm', (id: string) => {
-        server.send('sendVm', id);
+        const filePath = id.replace(VmProfix, '');
+        const source = virtual_module.get(filePath)?.source ?? defaultCom;
+        console.log(id, source, '服务端发送的内容是什么???');
+        server.send('sendVm', { id, source });
     });
 });
 
@@ -25,6 +34,7 @@ const isDevelopment = import.meta.env.MODE === 'development';
 
 let url = '0.0.0.0';
 const viteServer = fork(join(root, 'packages/main/viteProcess/child.js'), {});
+
 viteServer.on(
     'message',
     function (data: { type: string; payload: Record<string, any> }) {
@@ -43,16 +53,22 @@ viteServer.on(
 // 根组件
 const rootModulePath = join(
     __dirname,
-    '../../renderer/src/components/mainContent.vue'
+    '../../renderer/src/components/interactionComponent/pageContent.vue'
 );
 const rootModule: Vm = {
     path: rootModulePath,
     source: readFileSync(rootModulePath).toString(),
     childComponent: []
 };
+function createVm(vmInfo: Vm): Vm {
+    return {
+        path: vmInfo.path,
+        source: vmInfo.source,
+        childComponent: vmInfo.childComponent ?? []
+    };
+}
 //
 
-const virtual_module = new Map<string, Vm>();
 virtual_module.set(rootModulePath, rootModule);
 
 let mainWindow: BrowserWindow | null = null;
@@ -71,37 +87,44 @@ const createWindow = async () => {
     });
 
     ipcMain.on('add-component', (event, info: Info) => {
-        // 目前只考虑用vcode初始化的新项目，先不兼容旧项目
+        const { id, child, source, pos } = info;
+        const childWithoutExt = child.split('.')[0];
+        const tag = childWithoutExt
+            .split('-')
+            .map((c) => c[0].toUpperCase() + c.slice(1))
+            .join('');
+        const { dir, name } = parse(id);
+        const parentVm: Vm = virtual_module.get(id)!;
 
-        let vModule: Vm | undefined;
-        // id是父id，得设置到父id上
-        const { id, child } = info;
-        console.log(parse(id));
-        const resolvedPath = parse(id);
-
-        if (virtual_module.has(id)) {
-            vModule = virtual_module.get(id);
-        } else {
-            // 不能没有啊，没有的话直接给bk报错
-        }
-
-        const sonVm: Vm = {
-            path: join(resolvedPath.dir, resolvedPath.name, child),
-            source: sfc2source(sfcParse(info.source).descriptor),
+        const sonPath = join(dir, name, `${childWithoutExt}.vue`);
+        const sonVm: Vm = createVm({
+            path: sonPath,
+            source: source,
             childComponent: []
-        };
-        vModule?.childComponent?.push(sonVm);
-        console.log(vModule, '看看源码');
+        });
 
-        // 设置完之后，需要更新parent组件的代码，直接写入文件模拟手工改动就行，然后触发vite，进而进行通信
-        // 然后获取在这个阶段收集到的对应组件信息，有的话就返回，没有就报错（以防报错，加个默认的错误页面，给用户提示）
+        virtual_module.set(sonPath, sonVm);
+        parentVm.childComponent?.push(sonVm);
 
-        // 通信完成，还差互相通信 + 转换 + 页面操作触发
-        // 页面 -> ipc main -> 更新页面（加import和标签） -> 触发vite-dev -> node-ipc -> ipc main -> 获取后渲染到页面
-        // 往后加的组件里差标签要怎么做？magic-string？
-        // 如果加组件指纹的话，估计得改vnode
-        // 或者在主进程 再 调用下createElementVNode，进而获取scopeId，把它作为组件指纹即可，这样不用改vue相关内容？可以尝试下
-        // writeFileSync(join(__dirname, '../../renderer/src/components/mainContent.vue'), sfc2source(containerDesc, componentDesc));
+        const s = new MagicString(parentVm.source);
+        const ast = sfcParse(parentVm.source);
+        const importStatement = `import ${tag} from '${VmProfix}${sonPath}'`;
+
+        const { start: tStart, indent: tIndent } = getAstPos(
+            ast,
+            pos,
+            'template'
+        );
+        const { start: sStart, indent: sIndent } = getAstPos(
+            ast,
+            pos,
+            'script'
+        );
+
+        s.appendLeft(tStart, `<${tag}></${tag}>\n${' '.repeat(tIndent)}`);
+        s.appendLeft(sStart, `\n${importStatement}`);
+
+        writeFileSync(parentVm.path, s.toString());
     });
 
     /**

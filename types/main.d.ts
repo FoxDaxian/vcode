@@ -1,7 +1,8 @@
 interface Info {
+    pos: number[];
     id: string;
-    child: string;
     source: string;
+    child: string;
 }
 
 // VirtualModule

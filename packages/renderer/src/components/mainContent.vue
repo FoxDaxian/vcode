@@ -1,61 +1,17 @@
 <template>
     <div class="main-content" ref="contentRef">
-        <!-- 最左边是不是还需要一个区域，比如依赖可视化下载区 -->
-        <!-- 搞好交互还得弄格式转换 -->
         <div class="left-content">
-            <!-- 依赖下载等操作 -->
+            我是左侧
         </div>
-        <div class="page-content" @click="openEditor">
-            <test></test>
-            <ElButton>123</ElButton>
-            <!-- 需要在点击的地方插入，那么怎么获取点击的地方呢 -->
-        </div>
+        <PageContent></PageContent>
         <div class="right-content">
-            <!-- 当前模块环境上下文，作用域？ 模块汇总区域? -->
+            我是右侧
         </div>
     </div>
 </template>
 
 <script lang="ts" setup>
-import VmTest from '@vcode_virtual_module/test2';
-import VmTest2 from '@vcode_virtual_module/test23';
-import VmTest3 from '@vcode_virtual_module/test234';
-import VmTest33 from '@vcode_virtual_module/test23433222';
-import { ComponentInternalInstance } from 'vue';
-import { ElButton } from 'element-plus';
-import Test from './test.vue';
-const app = getCurrentInstance().appContext.config.globalProperties;
-
-console.log(VmTest, 'VmTest', VmTest2, VmTest3, VmTest33);
-
-function openEditor($event) {
-    // 点击后，找到对应当前被点击元素，属于什么组件，还得找到点击位置在归属组件的行数
-    // 那如果是循环生成的怎么办？
-    // 这样可以获取最近父组件， 然后返回的对象里还有个parent对象，可以用它递归获取
-    // 那么把内容传给主进程的时候，传递的内容得是vNode？或者说在主进程创建一个vNode？（或者对应的指纹？）
-    // 感觉可以吧当前这个vnode传递过去，作为唯一标识，但是得区分当前这个是引用的组件库，还是自己写的，如果是组件库的话，那就不对了吧？
-    // https://github.com/vuejs/devtools/pull/469 vue-devtools实现的办法
-
-    // console.dir($event.target, 'target');
-    // console.log(getComponentInstanceFromElement($event.target));
-    // console.log(getComponentInstanceFromElement($event.target).type.__file, '======');
-
-    const closeEditor = app.$openEditor({
-        // el: $event.target,
-        id: getComponentInstanceFromElement($event.target).type.__file,
-        update(info: Info) {
-            console.log(info);
-            window.ipc.send('add-component', info);
-        },
-        cancel() {
-            closeEditor();
-        }
-    });
-}
-
-function getComponentInstanceFromElement(element): ComponentInternalInstance {
-    return element.__vueParentComponent;
-}
+import PageContent from './interactionComponent/pageContent.vue';
 // 思路一：再启动一个vite或者react等，然后操作的部分是src 但是，你要怎么操作呢？
 // 嵌入一些生成内容的script？
 // 在主render加一层遮罩？那滚动条怎么处理
@@ -108,6 +64,6 @@ function getComponentInstanceFromElement(element): ComponentInternalInstance {
 
 <style lang="less" scoped>
 .page-content {
-    border: 1px solid blue;
+    border: 1px solid red;
 }
 </style>

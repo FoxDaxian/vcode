@@ -63,7 +63,7 @@ const setupMainPackageWatcher = () => {
                 spawnProcess = null;
             }
 
-            spawnProcess = spawn(String(electronPath), ['.']);
+            spawnProcess = spawn(String(electronPath), ['--disable-http-cache​', '.']);
 
             spawnProcess.stdout.on(
                 'data',

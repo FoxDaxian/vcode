@@ -6,8 +6,8 @@ import { join } from 'path';
 import { builtinModules } from 'module';
 import vue from '@vitejs/plugin-vue';
 import Client from '../utils/socket/Client';
+import { VmProfix } from '../utils/const/index';
 import event from 'events';
-// import conpiler from '@vue/compiler-sfc';
 
 class MyEmitter extends event.EventEmitter {}
 
@@ -16,13 +16,13 @@ const myEmitter = new MyEmitter();
 const client = new Client();
 client.connect();
 
-client.on('sendVm', (data) => {
-    myEmitter.emit(data, data);
+client.on('sendVm', ({ id, source }) => {
+    myEmitter.emit(id, source);
 });
 
 function getvm(event) {
     return new Promise((res) => {
-        myEmitter.once(event, (data) => {
+        myEmitter.on(event, (data) => {
             res(data);
         });
     });
@@ -44,11 +44,7 @@ console.log('虚拟模块');
 }
 </style>
 `;
-// const res = conpiler.parse(code, {
-//     filename: 's.vue',
-//     sourceMap: false
-// });
-// console.log(res);
+
 const PACKAGE_ROOT = __dirname;
 
 /**
@@ -67,17 +63,17 @@ const config = {
     plugins: [
         vue(),
         {
+            name: 'vcode-plugin',
             resolveId(source) {
-                if (source.startsWith('@vcode_virtual_module')) {
+                if (source.startsWith(`${VmProfix}/`)) {
                     return source;
                 }
                 return null;
             },
             async load(id) {
-                if (id.startsWith('@vcode_virtual_module')) {
+                if (id.startsWith(`${VmProfix}/`)) {
                     client.send('fetchVm', id);
-                    const vm = await getvm(id);
-                    return `export default {vm: '${vm}'}`;
+                    return await getvm(id);
                 }
                 return null;
             }
