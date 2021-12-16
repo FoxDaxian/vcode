@@ -61,13 +61,15 @@ export default defineComponent({
 
         const templateVal = [
             '<template>',
-            '    <input type="hidden" class="hidden">',
-            '    <div>我是被用户编辑后插入的</div>',
-            '    <div><h2>是的</h2></div>',
+            '    <div>',
+            '        <h1>我是被用户编辑后插入的</h1>',
+            '    </div>',
             '</template>',
+            '<script lang="ts" setup>',
+            '<' + '/script>',
             '<style lang="less" scoped>',
-            '.hidden {',
-            '    display: none;',
+            'div {',
+            '    color: red;',
             '}',
             '</style>'
         ].join('\n');

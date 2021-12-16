@@ -1,8 +1,11 @@
-import { chrome } from '../../electron-vendors.config.json';
-import { join } from 'path';
+import vendorsConfig from '../../electron-vendors.config.json';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { builtinModules } from 'module';
 
-const PACKAGE_ROOT = __dirname;
+const { chrome } = vendorsConfig;
+
+const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 
 /**
  * @type {import('vite').UserConfig}

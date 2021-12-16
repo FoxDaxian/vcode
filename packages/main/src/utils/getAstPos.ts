@@ -5,6 +5,7 @@ import {
 } from '@vue/compiler-core';
 
 export default (ast: RootNode, pos: number[], type: string) => {
+    // 比如template或者script，必须得有，如果没有的话，默认补全下即可
     const templateAst = ast.children.filter(
         (c) => (c as BaseElementNode).tag === type
     )[0];
@@ -14,7 +15,7 @@ export default (ast: RootNode, pos: number[], type: string) => {
         : undefined;
 
     if (!template) {
-        throw new Error('不能为空');
+        throw new Error('template或script两种类型必须有内容，否则无法插入内容');
     }
     let t = template;
     if (type === 'template') {

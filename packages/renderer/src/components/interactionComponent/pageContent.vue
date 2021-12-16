@@ -40,15 +40,17 @@ function openEditor($event) {
     const parentVnode = elWithVnode.__vueParentComponent.vnode;
     const parentEl = parentVnode.el;
     const pos: number[] = [];
-    if (curEl !== elWithVnode) {
+    if (curEl !== parentEl) {
         getPos(parentEl, curEl, pos);
+    } else {
+        console.log('点击的是组件本身');
+        return;
     }
 
     const closeEditor = app.$openEditor({
         pos,
         id,
         update(info: Info) {
-            console.log(info);
             window.ipc.send('add-component', info);
             closeEditor();
         },

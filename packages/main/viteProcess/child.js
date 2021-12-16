@@ -1,5 +1,6 @@
-const { createServer } = require('vite');
-const path = require('path');
+import { createServer } from 'vite';
+import path from 'path';
+
 const viteDevServerPromise = createServer({
     configFile: path.join(process.cwd(), 'packages/renderer/vite.config.js')
 });
@@ -16,4 +17,23 @@ viteDevServerPromise.then(async (server) => {
             url: `${protocol}//${host}:${port}${path}`
         }
     });
+});
+process.on('message', (msg) => {
+    // 看来得再实现一遍vite的文件更新逻辑了，日。。。
+    // 要么就放file里，但是感觉不太好
+    // socket有的可以一对一，有的可以一对多
+
+    // viteDevServerPromise.onFileChange(file);
+
+    // if (viteDevServerPromise.config.hmr !== false) {
+    //     try {
+    //         await handleHMRUpdate(file, server);
+    //     } catch (err) {
+    //         ws.send({
+    //             type: 'error',
+    //             err: prepareError(err)
+    //         });
+    //     }
+    // }
+    console.log(msg, '===');
 });

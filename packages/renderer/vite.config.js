@@ -1,13 +1,16 @@
 /* eslint-env node */
 
-import { chrome } from '../../electron-vendors.config.json';
+import vendorsConfig from '../../electron-vendors.config.json';
 import autoImport from 'rollup-plugin-auto-import';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { builtinModules } from 'module';
 import vue from '@vitejs/plugin-vue';
-import Client from '../utils/socket/Client';
-import { VmProfix } from '../utils/const/index';
+import { VmProfix } from '../utils/const/index.js';
+import Client from '../utils/socket/Client.js';
 import event from 'events';
+
+const { chrome } = vendorsConfig;
 
 class MyEmitter extends event.EventEmitter {}
 
@@ -19,6 +22,7 @@ client.connect();
 client.on('sendVm', ({ id, source }) => {
     myEmitter.emit(id, source);
 });
+
 
 function getvm(event) {
     return new Promise((res) => {
@@ -45,7 +49,7 @@ console.log('虚拟模块');
 </style>
 `;
 
-const PACKAGE_ROOT = __dirname;
+const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 
 /**
  * @type {import('vite').UserConfig}

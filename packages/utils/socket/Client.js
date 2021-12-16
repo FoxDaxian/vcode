@@ -9,7 +9,9 @@ export default class extends SocketBase {
         super();
     }
     connect() {
-        this.client = net.connect(this.pipeFile);
+        this.client = net.connect(this.pipeFile, () => {
+            console.log('socket connect success');
+        });
         this.client.on('data', (info) => {
             stick.receiveData(info, (buf) => {
                 const { channel, data } = JSON.parse(buf.toString());

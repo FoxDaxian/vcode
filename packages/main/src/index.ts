@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import MagicString from 'magic-string';
 import { join, parse, relative, normalize, resolve } from 'path';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, statSync } from 'fs';
 import sfc2source from './sfc2source';
 import { parse as sfcParse } from '@vue/compiler-dom';
 import { fork } from 'child_process';
@@ -21,9 +21,8 @@ const defaultCom = [
 server.connect().then(() => {
     // 响应vite的虚拟模块请求
     server.on('fetchVm', (id: string) => {
-        const filePath = id.replace(VmProfix, '');
+        const filePath = replaceVmPrefix(id);
         const source = virtual_module.get(filePath)?.source ?? defaultCom;
-        console.log(id, source, '服务端发送的内容是什么???');
         server.send('sendVm', { id, source });
     });
 });
@@ -33,7 +32,9 @@ const root = join(__dirname, '../../../');
 const isDevelopment = import.meta.env.MODE === 'development';
 
 let url = '0.0.0.0';
-const viteServer = fork(join(root, 'packages/main/viteProcess/child.js'), {});
+const viteServer = fork(join(root, 'packages/main/viteProcess/child.js'), {
+    execArgv: ['--experimental-specifier-resolution=node']
+});
 
 viteServer.on(
     'message',
@@ -94,7 +95,7 @@ const createWindow = async () => {
             .map((c) => c[0].toUpperCase() + c.slice(1))
             .join('');
         const { dir, name } = parse(id);
-        const parentVm: Vm = virtual_module.get(id)!;
+        const parentVm: Vm = virtual_module.get(replaceVmPrefix(id))!;
 
         const sonPath = join(dir, name, `${childWithoutExt}.vue`);
         const sonVm: Vm = createVm({
@@ -104,6 +105,11 @@ const createWindow = async () => {
         });
 
         virtual_module.set(sonPath, sonVm);
+        // 是否已经引入了这个子模块
+        const includedIndex = parentVm.childComponent?.findIndex(
+            (item) => item.path === sonVm.path
+        );
+        // 命名一致，得提示是否覆盖，如果覆盖，则继续，否则让用户修改
         parentVm.childComponent?.push(sonVm);
 
         const s = new MagicString(parentVm.source);
@@ -124,7 +130,18 @@ const createWindow = async () => {
         s.appendLeft(tStart, `<${tag}></${tag}>\n${' '.repeat(tIndent)}`);
         s.appendLeft(sStart, `\n${importStatement}`);
 
-        writeFileSync(parentVm.path, s.toString());
+        if (fileExist(parentVm.path)) {
+            writeFileSync(parentVm.path, s.toString());
+            parentVm.source = s.toString();
+        } else if (virtual_module.has(parentVm.path)) {
+            // 如果是虚拟文件的话，得监听虚拟file，才方便触发vue更新
+            viteServer.send(parentVm.path)
+            // console.log(parentVm.source);
+            // console.log(s.toString(), '被插入的内容');
+            parentVm.source = s.toString();
+        } else {
+            console.log('不存在啊');
+        }
     });
 
     /**
@@ -193,4 +210,17 @@ if (import.meta.env.MODE === 'development') {
             })
         )
         .catch((e) => console.error('Failed install extension:', e));
+}
+
+function replaceVmPrefix(id: string) {
+    return id.replace(VmProfix, '');
+}
+
+function fileExist(filepath: string) {
+    try {
+        statSync(filepath);
+        return true;
+    } catch (e) {
+        return false;
+    }
 }

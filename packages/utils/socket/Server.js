@@ -15,7 +15,7 @@ export default class extends Socketbase {
             this.send = (channel, data) => {
                 c.write(stick.makeData(JSON.stringify({ channel, data })));
             };
-            console.log('connected');
+            console.log('socket started');
             c.on('error', (err) => console.error(err));
             c.on('close', () => {
                 console.log('disconnected');

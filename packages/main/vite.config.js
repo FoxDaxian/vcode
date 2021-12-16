@@ -1,7 +1,11 @@
-import { node } from '../../electron-vendors.config.json';
+import vendorsConfig from '../../electron-vendors.config.json';
 import { builtinModules } from 'module';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const PACKAGE_ROOT = __dirname;
+const { node } = vendorsConfig;
+
+const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 
 /**
  * @type {import('vite').UserConfig}
