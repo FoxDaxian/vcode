@@ -10,20 +10,45 @@ import { VmProfix } from '../../utils/const/index';
 import getAstPos from './utils/getAstPos';
 
 const virtual_module = new Map<string, Vm>();
+
+// 根组件
+const rootModulePath = join(
+    __dirname,
+    '../../renderer/src/components/interactionComponent/pageContent.vue'
+);
+const rootModule: Vm = {
+    path: rootModulePath,
+    source: readFileSync(rootModulePath).toString(),
+    childComponent: []
+};
+function createVm(vmInfo: Vm): Vm {
+    return {
+        path: vmInfo.path,
+        source: vmInfo.source,
+        childComponent: vmInfo.childComponent ?? []
+    };
+}
+virtual_module.set(rootModulePath, rootModule);
+//
+
 // ipc
 const server = new Server();
 
-const defaultCom = [
-    '<template>',
-    '    <div>未找到对应组件，请检查后重试</div>',
-    '</template>'
-].join('\n');
+function replacer(key: any, value: any) {
+    if (value instanceof Map) {
+        return [...value].reduce(
+            (obj, [k, v]) =>
+                k === 'childComponent' ? obj : Object.assign(obj, { [k]: v }),
+            {}
+        );
+    } else {
+        return value;
+    }
+}
+
 server.connect().then(() => {
-    // 响应vite的虚拟模块请求
-    server.on('fetchVm', (id: string) => {
-        const filePath = replaceVmPrefix(id);
-        const source = virtual_module.get(filePath)?.source ?? defaultCom;
-        server.send('sendVm', { id, source });
+    server.on('fetchAllVm', () => {
+        server.send('fetchAllVm', JSON.stringify(virtual_module, replacer));
     });
 });
 
@@ -51,27 +76,6 @@ viteServer.on(
     }
 );
 
-// 根组件
-const rootModulePath = join(
-    __dirname,
-    '../../renderer/src/components/interactionComponent/pageContent.vue'
-);
-const rootModule: Vm = {
-    path: rootModulePath,
-    source: readFileSync(rootModulePath).toString(),
-    childComponent: []
-};
-function createVm(vmInfo: Vm): Vm {
-    return {
-        path: vmInfo.path,
-        source: vmInfo.source,
-        childComponent: vmInfo.childComponent ?? []
-    };
-}
-//
-
-virtual_module.set(rootModulePath, rootModule);
-
 let mainWindow: BrowserWindow | null = null;
 
 const createWindow = async () => {
@@ -88,16 +92,30 @@ const createWindow = async () => {
     });
 
     ipcMain.on('add-component', (event, info: Info) => {
-        const { id, child, source, pos } = info;
+        const { id, child, source, pos, updateSelf, prepend } = info;
+        const parentVm: Vm = virtual_module.get(replaceVmPrefix(id))!;
+        // 支持修改本身组件名
+        if (updateSelf) {
+            parentVm.source = source;
+            if (parentVm.path === rootModule.path) {
+                writeFileSync(parentVm.path, parentVm.source);
+            }
+            viteServer.send(`${VmProfix}${parentVm.path}`);
+            return;
+        }
         const childWithoutExt = child.split('.')[0];
         const tag = childWithoutExt
             .split('-')
             .map((c) => c[0].toUpperCase() + c.slice(1))
             .join('');
         const { dir, name } = parse(id);
-        const parentVm: Vm = virtual_module.get(replaceVmPrefix(id))!;
+        
 
-        const sonPath = join(dir, name, `${childWithoutExt}.vue`);
+        const sonPath = join(
+            replaceVmPrefix(dir),
+            name,
+            `${childWithoutExt}.vue`
+        );
         const sonVm: Vm = createVm({
             path: sonPath,
             source: source,
@@ -106,6 +124,7 @@ const createWindow = async () => {
 
         virtual_module.set(sonPath, sonVm);
         // 是否已经引入了这个子模块
+        console.log(parentVm.childComponent);
         const includedIndex = parentVm.childComponent?.findIndex(
             (item) => item.path === sonVm.path
         );
@@ -116,7 +135,7 @@ const createWindow = async () => {
         const ast = sfcParse(parentVm.source);
         const importStatement = `import ${tag} from '${VmProfix}${sonPath}'`;
 
-        const { start: tStart, indent: tIndent } = getAstPos(
+        const { start: tStart, end: tEnd, indent: tIndent } = getAstPos(
             ast,
             pos,
             'template'
@@ -127,7 +146,11 @@ const createWindow = async () => {
             'script'
         );
 
-        s.appendLeft(tStart, `<${tag}></${tag}>\n${' '.repeat(tIndent)}`);
+        if (prepend) {
+            s.appendLeft(tEnd, `\n${' '.repeat(tIndent)}<${tag}></${tag}>`);
+        } else {
+            s.appendLeft(tStart, `<${tag}></${tag}>\n${' '.repeat(tIndent)}`);
+        }
         s.appendLeft(sStart, `\n${importStatement}`);
 
         if (fileExist(parentVm.path)) {
@@ -135,13 +158,14 @@ const createWindow = async () => {
             parentVm.source = s.toString();
         } else if (virtual_module.has(parentVm.path)) {
             // 如果是虚拟文件的话，得监听虚拟file，才方便触发vue更新
-            viteServer.send(parentVm.path)
+            viteServer.send(`${VmProfix}${parentVm.path}`);
             // console.log(parentVm.source);
             // console.log(s.toString(), '被插入的内容');
             parentVm.source = s.toString();
         } else {
             console.log('不存在啊');
         }
+        server.send('getVm', JSON.stringify(virtual_module, replacer));
     });
 
     /**

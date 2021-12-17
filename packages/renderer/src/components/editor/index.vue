@@ -1,29 +1,33 @@
 <template>
     <div class="editor-wrap" v-if="visible">
         <div class="header-info">
-            <input class="name" type="text" v-model="componentName" />
+            <input
+                class="name"
+                :disabled="componentName === 'pageContent'"
+                type="text"
+                v-model="componentName"
+            />
         </div>
         <div class="editor" ref="editor"></div>
         <div class="btns">
-            <div class="confim" @click="_update">update</div>
+            <div class="confim" @click="ipcUpdate">update</div>
             <div class="cancel" @click="cancel">close</div>
         </div>
     </div>
 </template>
 <script lang="ts">
+import { defineComponent, ref, onMounted, nextTick } from 'vue';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
 export default defineComponent({
     name: 'myEditor',
     emits: ['destroy'],
     props: {
-        pos: {
-            type: Array,
-            defaylt() {
-                return [];
-            }
-        },
         id: {
+            type: String,
+            default: ''
+        },
+        sourceText: {
             type: String,
             default: ''
         },
@@ -43,14 +47,14 @@ export default defineComponent({
     setup(
         // 得改成path对应的id了
         props: {
-            update: ({ parent: string, child: string, source: string }) => void;
+            update: ({ child: string, source: string }) => void;
             cancel: () => void;
-            id: string;
         },
         context: { emit: () => void }
     ) {
         const visible = ref(true);
-        const componentName = ref('');
+        const fileName = props.id.split('/').pop().split('.')[0];
+        const componentName = ref(fileName);
 
         const close = () => {
             visible.value = false;
@@ -59,47 +63,34 @@ export default defineComponent({
 
         const editor = ref(null);
 
-        const templateVal = [
-            '<template>',
-            '    <div>',
-            '        <h1>我是被用户编辑后插入的</h1>',
-            '    </div>',
-            '</template>',
-            '<script lang="ts" setup>',
-            '<' + '/script>',
-            '<style lang="less" scoped>',
-            'div {',
-            '    color: red;',
-            '}',
-            '</style>'
-        ].join('\n');
+        const code = ref(props.sourceText);
         onMounted(async () => {
             await nextTick();
-            monaco.editor.create(editor.value, {
-                value: templateVal,
+            const e = monaco.editor.create(editor.value, {
+                value: code.value,
                 language: 'typescript',
                 theme: 'vs-dark'
             });
+            e.onDidChangeModelContent(() => {
+                code.value = e.getValue();
+            });
         });
-        const _update = () => {
+        const ipcUpdate = () => {
             if (!componentName.value) {
                 return;
             }
             props.update({
-                pos: props.pos,
-                id: props.id,
                 child: componentName.value,
-                source: templateVal
+                source: code.value
             });
         };
 
         return {
-            _update,
+            ipcUpdate,
             componentName,
             editor,
             close,
-            visible,
-            templateVal
+            visible
         };
     }
 });
@@ -113,8 +104,8 @@ export default defineComponent({
     left: 0;
     right: 0;
     margin: auto;
-    width: 50vw;
-    height: 50vh;
+    width: 70vw;
+    height: 70vh;
     display: flex;
     flex-direction: column;
 }
