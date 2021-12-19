@@ -147,9 +147,9 @@ const createWindow = async () => {
         );
 
         if (prepend) {
-            s.appendLeft(tEnd, `\n${' '.repeat(tIndent)}<${tag}></${tag}>`);
-        } else {
             s.appendLeft(tStart, `<${tag}></${tag}>\n${' '.repeat(tIndent)}`);
+        } else {
+            s.appendLeft(tEnd, `\n${' '.repeat(tIndent)}<${tag}></${tag}>`);
         }
         s.appendLeft(sStart, `\n${importStatement}`);
 
