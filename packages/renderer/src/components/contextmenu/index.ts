@@ -7,7 +7,7 @@ type Data = Record<string, unknown>;
 
 export default {
     install: (app: App) => {
-        app.config.globalProperties.$openEditor = (
+        app.config.globalProperties.$openContextmenu = (
             param: VNodeProps | Data
         ) => {
             const container: HTMLElement = document.createElement('div');

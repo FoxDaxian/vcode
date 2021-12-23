@@ -1,54 +1,32 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import MagicString from 'magic-string';
-import { join, parse, relative, normalize, resolve } from 'path';
-import { readFileSync, writeFileSync, statSync } from 'fs';
+import { app, BrowserWindow } from 'electron';
+
+import { join } from 'path';
 import sfc2source from './sfc2source';
-import { parse as sfcParse } from '@vue/compiler-dom';
 import { fork } from 'child_process';
 import Server from '../../utils/socket/Server.js';
-import { VmProfix } from '../../utils/const/index';
-import getAstPos from './utils/getAstPos';
+import createVm from './utils/createVm';
+import stringify from './utils/stringify';
+import comTemp from './utils/comTemp';
+import ipcRouter from './ipcEvent/router';
+import ipcComponent from './ipcEvent/component';
 
 const virtual_module = new Map<string, Vm>();
 
 // 根组件
-const rootModulePath = join(
-    __dirname,
-    '../../renderer/src/components/interactionComponent/pageContent.vue'
-);
-const rootModule: Vm = {
+const pageRootPath = join(__dirname, '../../renderer/src/page');
+const rootModulePath = join(pageRootPath, 'mainContent.vue');
+const rootModule: Vm = createVm({
     path: rootModulePath,
-    source: readFileSync(rootModulePath).toString(),
-    childComponent: []
-};
-function createVm(vmInfo: Vm): Vm {
-    return {
-        path: vmInfo.path,
-        source: vmInfo.source,
-        childComponent: vmInfo.childComponent ?? []
-    };
-}
-virtual_module.set(rootModulePath, rootModule);
-//
+    source: comTemp
+});
+virtual_module.set(rootModule.path, rootModule);
 
 // ipc
 const server = new Server();
 
-function replacer(key: any, value: any) {
-    if (value instanceof Map) {
-        return [...value].reduce(
-            (obj, [k, v]) =>
-                k === 'childComponent' ? obj : Object.assign(obj, { [k]: v }),
-            {}
-        );
-    } else {
-        return value;
-    }
-}
-
 server.connect().then(() => {
     server.on('fetchAllVm', () => {
-        server.send('fetchAllVm', JSON.stringify(virtual_module, replacer));
+        server.send('fetchAllVm', stringify(virtual_module));
     });
 });
 
@@ -78,6 +56,7 @@ viteServer.on(
 
 let mainWindow: BrowserWindow | null = null;
 
+// https://redis.io/topics/persistence redis database persistence
 const createWindow = async () => {
     mainWindow = new BrowserWindow({
         width: 1500,
@@ -91,81 +70,15 @@ const createWindow = async () => {
         }
     });
 
-    ipcMain.on('add-component', (event, info: Info) => {
-        const { id, child, source, pos, updateSelf, prepend } = info;
-        const parentVm: Vm = virtual_module.get(replaceVmPrefix(id))!;
-        // 支持修改本身组件名
-        if (updateSelf) {
-            parentVm.source = source;
-            if (parentVm.path === rootModule.path) {
-                writeFileSync(parentVm.path, parentVm.source);
-            }
-            viteServer.send(`${VmProfix}${parentVm.path}`);
-            return;
-        }
-        const childWithoutExt = child.split('.')[0];
-        const tag = childWithoutExt
-            .split('-')
-            .map((c) => c[0].toUpperCase() + c.slice(1))
-            .join('');
-        const { dir, name } = parse(id);
-        
-
-        const sonPath = join(
-            replaceVmPrefix(dir),
-            name,
-            `${childWithoutExt}.vue`
-        );
-        const sonVm: Vm = createVm({
-            path: sonPath,
-            source: source,
-            childComponent: []
-        });
-
-        virtual_module.set(sonPath, sonVm);
-        // 是否已经引入了这个子模块
-        console.log(parentVm.childComponent);
-        const includedIndex = parentVm.childComponent?.findIndex(
-            (item) => item.path === sonVm.path
-        );
-        // 命名一致，得提示是否覆盖，如果覆盖，则继续，否则让用户修改
-        parentVm.childComponent?.push(sonVm);
-
-        const s = new MagicString(parentVm.source);
-        const ast = sfcParse(parentVm.source);
-        const importStatement = `import ${tag} from '${VmProfix}${sonPath}'`;
-
-        const { start: tStart, end: tEnd, indent: tIndent } = getAstPos(
-            ast,
-            pos,
-            'template'
-        );
-        const { start: sStart, indent: sIndent } = getAstPos(
-            ast,
-            pos,
-            'script'
-        );
-
-        if (prepend) {
-            s.appendLeft(tStart, `<${tag}></${tag}>\n${' '.repeat(tIndent)}`);
-        } else {
-            s.appendLeft(tEnd, `\n${' '.repeat(tIndent)}<${tag}></${tag}>`);
-        }
-        s.appendLeft(sStart, `\n${importStatement}`);
-
-        if (fileExist(parentVm.path)) {
-            writeFileSync(parentVm.path, s.toString());
-            parentVm.source = s.toString();
-        } else if (virtual_module.has(parentVm.path)) {
-            // 如果是虚拟文件的话，得监听虚拟file，才方便触发vue更新
-            viteServer.send(`${VmProfix}${parentVm.path}`);
-            // console.log(parentVm.source);
-            // console.log(s.toString(), '被插入的内容');
-            parentVm.source = s.toString();
-        } else {
-            console.log('不存在啊');
-        }
-        server.send('getVm', JSON.stringify(virtual_module, replacer));
+    ipcRouter({
+        virtual_module,
+        server,
+        pageRootPath
+    });
+    ipcComponent({
+        virtual_module,
+        server,
+        viteServer
     });
 
     /**
@@ -234,17 +147,4 @@ if (import.meta.env.MODE === 'development') {
             })
         )
         .catch((e) => console.error('Failed install extension:', e));
-}
-
-function replaceVmPrefix(id: string) {
-    return id.replace(VmProfix, '');
-}
-
-function fileExist(filepath: string) {
-    try {
-        statSync(filepath);
-        return true;
-    } catch (e) {
-        return false;
-    }
 }

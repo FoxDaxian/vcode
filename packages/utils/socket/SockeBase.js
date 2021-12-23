@@ -19,10 +19,10 @@ export default class {
     connect() {
         console.log('please override connect');
     }
-    send() {
+    send(channel, data) {
         console.log('please override send');
     }
-    on() {
+    on(channel, data) {
         console.log('please override on');
     }
 }

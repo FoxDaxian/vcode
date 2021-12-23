@@ -25,6 +25,7 @@ client.connect().then(() => {
             vm.set(key, value);
         });
     });
+    // TODO: 现在是直接一股脑更新，后续需要改成按需更新
     client.on('getVm', (data) => {
         Object.entries(JSON.parse(data)).forEach(([key, value]) => {
             vm.set(key, value);
@@ -47,6 +48,10 @@ const config = {
             '@assets': join(PACKAGE_ROOT, 'assets')
         }
     },
+    define: {
+        PAGEPATH: JSON.stringify(join(PACKAGE_ROOT, 'src/page')),
+        ROOTCOM: JSON.stringify(join(VmProfix, PACKAGE_ROOT, 'src/page/mainContent.vue')),
+    },
     plugins: [
         vue(),
         {
@@ -62,7 +67,9 @@ const config = {
             },
             load(id) {
                 if (id.startsWith(VmProfix)) {
-                    return vm.get(id.replace(VmProfix, '')).source || defaultCom;
+                    return (
+                        vm.get(id.replace(VmProfix, '')).source || defaultCom
+                    );
                 }
                 if (id.startsWith(GetCurComponent)) {
                     return 'null';

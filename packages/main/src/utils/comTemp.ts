@@ -1,6 +1,8 @@
+export default `
 <template>
-    <div class="page-content">
-        <span>你好，我是西能的</span>
+    <div class="main">
+        <span>你好12，我是有样式的</span>
+        <router-view></router-view>
         <div class="n1">
             <div class="n2">
                 <div class="n3">n31</div>
@@ -18,13 +20,11 @@
 </template>
 
 <script lang="ts" setup>
-function jump() {
-    console.log(123);
-}
 </script>
 
 <style lang="less" scoped>
-    span {
-        color: red;
-    }
+.main {
+    height: 100%
+}
 </style>
+`;

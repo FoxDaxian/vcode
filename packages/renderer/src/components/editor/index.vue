@@ -1,12 +1,23 @@
 <template>
     <div class="editor-wrap" v-if="visible">
         <div class="header-info">
-            <input
-                class="name"
-                :disabled="componentName === 'pageContent'"
-                type="text"
+            <ElInput
+                v-if="insertOrNew"
+                placeholder="route path"
+                v-model="routePath"
+            >
+                <template #prepend>{{ parentRoutePath }}</template>
+            </ElInput>
+            <ElInput
+                v-if="insertOrNew"
+                placeholder="route name"
+                v-model="routeName"
+            ></ElInput>
+            <ElInput
+                placeholder="component name"
                 v-model="componentName"
-            />
+                :disabled="componentName === 'mainContent'"
+            ></ElInput>
         </div>
         <div class="editor" ref="editor"></div>
         <div class="btns">
@@ -16,13 +27,25 @@
     </div>
 </template>
 <script lang="ts">
+import { ElInput } from 'element-plus';
 import { defineComponent, ref, onMounted, nextTick } from 'vue';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
 export default defineComponent({
     name: 'myEditor',
     emits: ['destroy'],
+    components: {
+        ElInput
+    },
     props: {
+        insertOrNew: {
+            type: String,
+            default: ''
+        },
+        parentRoutePath: {
+            type: String,
+            default: ''
+        },
         id: {
             type: String,
             default: ''
@@ -45,7 +68,6 @@ export default defineComponent({
         }
     },
     setup(
-        // 得改成path对应的id了
         props: {
             update: ({ child: string, source: string }) => void;
             cancel: () => void;
@@ -55,6 +77,8 @@ export default defineComponent({
         const visible = ref(true);
         const fileName = props.id.split('/').pop().split('.')[0];
         const componentName = ref(fileName);
+        const routeName = ref('');
+        const routePath = ref('');
 
         const close = () => {
             visible.value = false;
@@ -80,12 +104,16 @@ export default defineComponent({
                 return;
             }
             props.update({
+                routePath: routePath.value,
+                routeName: routeName.value,
                 child: componentName.value,
                 source: code.value
             });
         };
 
         return {
+            routeName,
+            routePath,
             ipcUpdate,
             componentName,
             editor,
@@ -112,12 +140,6 @@ export default defineComponent({
 .header-info {
     box-sizing: border-box;
     padding: 10px 0;
-    input {
-        width: 100%;
-        height: 30px;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-    }
 }
 .editor {
     flex: 1;
