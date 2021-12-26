@@ -1,11 +1,11 @@
 import { ipcMain } from 'electron';
-import { UpdateComponent } from '../../../utils/const/index';
 import createVm from '../utils/createVm';
 import MagicString from 'magic-string';
 import { join, parse } from 'path';
+import stringify from '../utils/stringify';
 import { writeFileSync, statSync } from 'fs';
 import { parse as sfcParse } from '@vue/compiler-dom';
-import { VmProfix } from '../../../utils/const/index';
+import { VmProfix, UpdateComponent } from '../../../utils/const/index';
 import getAstPos from '../utils/getAstPos';
 import type SocketBase from '../../../utils/socket/SockeBase';
 import type { ChildProcess } from 'child_process';
@@ -26,6 +26,7 @@ export default ({
         if (updateSelf) {
             // TODO: 如果是虚拟模块怎么办呢？这里少逻辑，等写完数据库后完善
             parentVm.source = source;
+            server.send('getVm', stringify(virtual_module));
             // 这里是强制更新，有问题
             viteServer.send(`${VmProfix}${parentVm.path}`);
             return;
@@ -82,15 +83,13 @@ export default ({
             writeFileSync(parentVm.path, s.toString());
             parentVm.source = s.toString();
         } else if (virtual_module.has(parentVm.path)) {
+            parentVm.source = s.toString();
             // 如果是虚拟文件的话，得监听虚拟file，才方便触发vue更新
             viteServer.send(`${VmProfix}${parentVm.path}`);
-            // console.log(parentVm.source);
-            // console.log(s.toString(), '被插入的内容');
-            parentVm.source = s.toString();
         } else {
             console.log('不存在啊');
         }
-        server.send('getVm', JSON.stringify(virtual_module));
+        server.send('getVm', stringify(virtual_module));
     });
 };
 

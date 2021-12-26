@@ -9,6 +9,7 @@ import stringify from './utils/stringify';
 import comTemp from './utils/comTemp';
 import ipcRouter from './ipcEvent/router';
 import ipcComponent from './ipcEvent/component';
+import ipcFreshCache from './ipcEvent/freshCache';
 
 const virtual_module = new Map<string, Vm>();
 
@@ -78,6 +79,9 @@ const createWindow = async () => {
     ipcComponent({
         virtual_module,
         server,
+        viteServer
+    });
+    ipcFreshCache({
         viteServer
     });
 

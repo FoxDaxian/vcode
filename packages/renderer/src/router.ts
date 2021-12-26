@@ -7,6 +7,7 @@ const routes = [
         path: '/',
         name: 'mainContent',
         component: () => import(/* @vite-ignore */ ROOTCOM)
+        // component: () => import('./page/t.vue')
     }
 ];
 const router = createRouter({

@@ -2,7 +2,7 @@
 
 import vendorsConfig from '../../electron-vendors.config.json';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, parse } from 'url';
 import { builtinModules } from 'module';
 import vue from '@vitejs/plugin-vue';
 import { VmProfix, GetCurComponent } from '../utils/const/index.js';
@@ -50,31 +50,44 @@ const config = {
     },
     define: {
         PAGEPATH: JSON.stringify(join(PACKAGE_ROOT, 'src/page')),
-        ROOTCOM: JSON.stringify(join(VmProfix, PACKAGE_ROOT, 'src/page/mainContent.vue')),
+        ROOTCOM: JSON.stringify(
+            join(VmProfix, PACKAGE_ROOT, 'src/page/mainContent.vue')
+        )
     },
     plugins: [
-        vue(),
         {
-            name: 'vcode-plugin',
+            name: 'vcode-vm',
+            enforce: 'pre',
             resolveId(source) {
                 if (source.startsWith(VmProfix)) {
                     return source;
                 }
-                if (source.startsWith(GetCurComponent)) {
-                    return source;
-                }
-                return null;
             },
             load(id) {
                 if (id.startsWith(VmProfix)) {
+                    const { pathname, query } = parse(id);
+                    if (query) {
+                        return null;
+                    }
                     return (
-                        vm.get(id.replace(VmProfix, '')).source || defaultCom
+                        vm.get(pathname.replace(VmProfix, '')).source || defaultCom
                     );
                 }
-                if (id.startsWith(GetCurComponent)) {
-                    return 'null';
+            }
+        },
+        {
+            name: 'vcode-get-component',
+            enforce: 'post',
+            resolveId(source) {
+                if (source.startsWith(GetCurComponent)) {
+                    const { pathname } = parse(source);
+                    return pathname;
                 }
-                return null;
+            },
+            load(id) {
+                if (id.startsWith(GetCurComponent)) {
+                    return '';
+                }
             },
             transform(code, id) {
                 if (id.startsWith(GetCurComponent)) {
@@ -83,7 +96,8 @@ const config = {
                     }\`;export { s as default }`;
                 }
             }
-        }
+        },
+        vue()
     ],
     base: '',
     server: {

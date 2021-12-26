@@ -24,7 +24,6 @@
 </template>
 
 <script lang="ts" setup>
-import { ElDialog, ElButton } from 'element-plus';
 import { getCurrentInstance, ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import type { RouteRecordRaw, RouteRecordNormalized } from 'vue-router';
@@ -32,9 +31,11 @@ import {
     VmProfix,
     GetCurComponent,
     UpdateComponent,
-    UpdateRouter
+    UpdateRouter,
+    FRESHCACHE
 } from '../../utils/const/index';
 import RouterMenu from './components/routerMenu/index.vue';
+import ipc from '../../preload/src/utils/ipc';
 
 // TODO:
 // 如何定义路由呢？
@@ -135,7 +136,6 @@ async function addRoute($event, info) {
         ]
     });
 }
-const dialogShow = ref(false);
 const element = ref();
 
 function showDialog($event) {
@@ -171,15 +171,11 @@ function showDialog($event) {
         menuItems
     });
 }
-function toggleDialog() {
-    dialogShow.value = !dialogShow.value;
-}
 async function modify() {
     const selectEl = element.value;
     const { id } = getComponentInfo(selectEl);
     const source = await getSource(id, true);
     openEditor({ id, source });
-    toggleDialog();
 }
 async function append() {
     const selectEl = element.value;
@@ -187,7 +183,6 @@ async function append() {
     const pos = getPosFromEl(selectEl, parentEl);
     const source = await getSource(id, false);
     openEditor({ id, source, pos, updateSelf: false });
-    toggleDialog();
 }
 async function prepend() {
     const selectEl = element.value;
@@ -195,7 +190,6 @@ async function prepend() {
     const pos = getPosFromEl(selectEl, parentEl);
     const source = await getSource(id, false);
     openEditor({ id, source, pos, updateSelf: false, prepend: true });
-    toggleDialog();
 }
 
 function openEditor({
@@ -299,8 +293,15 @@ async function getSource(id, updateSelf) {
         '</style>'
     ].join('\n');
     if (updateSelf) {
+        // GetCurComponent这个标志真的有必要吗？
+        window.ipc.send(FRESHCACHE, {
+            id: `${GetCurComponent}${id.replace(VmProfix, '')}`
+        });
         const { default: code } = await import(
-            /* @vite-ignore */ `${GetCurComponent}${id.replace(VmProfix, '')}`
+            /* @vite-ignore */ `${GetCurComponent}${id.replace(
+                VmProfix,
+                ''
+            )}?t=${Date.now()}`
         );
         source = code;
     }
