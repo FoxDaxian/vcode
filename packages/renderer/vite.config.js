@@ -49,10 +49,8 @@ const config = {
         }
     },
     define: {
-        PAGEPATH: JSON.stringify(join(PACKAGE_ROOT, 'src/page')),
-        ROOTCOM: JSON.stringify(
-            join(VmProfix, PACKAGE_ROOT, 'src/page/mainContent.vue')
-        )
+        PAGEPATH: JSON.stringify(join('/src/page')),
+        ROOTCOM: JSON.stringify(join(VmProfix, 'src/page/mainContent.vue'))
     },
     plugins: [
         {
@@ -70,7 +68,8 @@ const config = {
                         return null;
                     }
                     return (
-                        vm.get(pathname.replace(VmProfix, '')).source || defaultCom
+                        vm.get(pathname.replace(VmProfix, '')).source ||
+                        defaultCom
                     );
                 }
             }

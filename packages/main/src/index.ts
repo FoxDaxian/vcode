@@ -1,5 +1,4 @@
 import { app, BrowserWindow } from 'electron';
-
 import { join } from 'path';
 import sfc2source from './sfc2source';
 import { fork } from 'child_process';
@@ -14,7 +13,7 @@ import ipcFreshCache from './ipcEvent/freshCache';
 const virtual_module = new Map<string, Vm>();
 
 // 根组件
-const pageRootPath = join(__dirname, '../../renderer/src/page');
+const pageRootPath = '/src/page';
 const rootModulePath = join(pageRootPath, 'mainContent.vue');
 const rootModule: Vm = createVm({
     path: rootModulePath,

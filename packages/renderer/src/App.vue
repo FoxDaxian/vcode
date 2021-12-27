@@ -14,7 +14,7 @@
                 {{ route.path }}
             </div>
             <router-view
-                @click.right="showDialog"
+                @click.right="addComponent"
                 @mousemove="addHightlight"
                 @mouseout="removeHightlight"
             ></router-view>
@@ -138,7 +138,7 @@ async function addRoute($event, info) {
 }
 const element = ref();
 
-function showDialog($event) {
+function addComponent($event) {
     const { el: parentEl } = getComponentInfo($event.target);
     const showInsert = $event.target !== parentEl;
     element.value = $event.target;
@@ -180,14 +180,14 @@ async function modify() {
 async function append() {
     const selectEl = element.value;
     const { id, el: parentEl } = getComponentInfo(selectEl);
-    const pos = getPosFromEl(selectEl, parentEl);
+    const pos = getPosFromEl(selectEl, parentEl, 'append');
     const source = await getSource(id, false);
     openEditor({ id, source, pos, updateSelf: false });
 }
 async function prepend() {
     const selectEl = element.value;
     const { id, el: parentEl } = getComponentInfo(selectEl);
-    const pos = getPosFromEl(selectEl, parentEl);
+    const pos = getPosFromEl(selectEl, parentEl, 'prepend');
     const source = await getSource(id, false);
     openEditor({ id, source, pos, updateSelf: false, prepend: true });
 }
@@ -274,9 +274,9 @@ function getParentRoute(routers, targetPath) {
     return false;
 }
 
-function getPosFromEl(curEl, parentEl) {
+function getPosFromEl(curEl, parentEl, whichPend) {
     const pos: number[] = [];
-    getPos(parentEl, curEl, pos);
+    getPos(parentEl, curEl, pos, whichPend);
     return pos;
 }
 
@@ -326,25 +326,64 @@ function getComponentInfo(el: Element) {
     return { el: parentEl, id };
 }
 
-function getPos(parent, child, pos) {
+function getPos(parent, child, pos, whichPend) {
+    let n = 0;
+    let prevDirective;
+    let children;
     if (child.parentElement === parent) {
-        pos.unshift(Array.prototype.indexOf.call(parent.childNodes, child));
+        children = parent.children;
+    } else {
+        children = child.parentElement.children;
+    }
+
+    // TODO: 得优化逻辑。。还有component.ips.ts那个文件里
+    for (let i = 0, len = children.length; i < len; ++i) {
+        const curNode = children[i];
+        const curDirective = curNode.dataset && curNode.dataset.vcodeDirective;
+
+        if (curNode === child) {
+            if (curDirective && curDirective.startsWith('if')) {
+                if (whichPend === 'append') {
+                    n = i;
+                } else {
+                    for (let tempi = i - 1; tempi >= 0; --tempi) {
+                        const curNodeForIf = children[tempi];
+                        const curDirectiveForIf =
+                            curNodeForIf.dataset &&
+                            curNodeForIf.dataset.vcodeDirective;
+                        if (curDirectiveForIf !== curDirective) {
+                            break;
+                        }
+                        --n;
+                    }
+                }
+                pos.unshift(n);
+            } else {
+                if (
+                    children[i - 1] &&
+                    children[i - 1].dataset &&
+                    children[i - 1].dataset.vcodeDirective
+                ) {
+                    --n;
+                }
+                pos.unshift(n);
+            }
+            break;
+        }
+        if (curDirective) {
+            if (prevDirective === curDirective) {
+                continue;
+            }
+            prevDirective = curDirective;
+        }
+        ++n;
+    }
+
+    if (child.parentElement === parent) {
         return pos;
     } else {
-        pos.unshift(
-            Array.prototype.indexOf.call(child.parentElement.childNodes, child)
-        );
-        return getPos(parent, child.parentElement, pos);
+        return getPos(parent, child.parentElement, pos, whichPend);
     }
-}
-function getMenuIndex(route: RouteRecordRaw) {
-    let count = 1;
-    while (route.children && route.children.length) {
-        const child = route.children[0];
-        count++;
-        route = child;
-    }
-    return new Array(count).fill('0').join('-');
 }
 
 function initRoutes() {
@@ -379,7 +418,7 @@ function initRoutes() {
     display: flex;
 }
 .virtual-browser {
-    flex-grow: 1;
+    width: calc(100vw - 360px);
     display: flex;
     flex-direction: column;
     overflow: auto;

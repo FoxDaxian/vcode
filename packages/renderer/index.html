@@ -3,11 +3,31 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' blob:">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-2726c7f26c'">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <style>#app{height:100vh;}</style>
+    <style>
+        #app {
+            height: 100vh;
+        }
+    </style>
     <link rel="stylesheet" href="./src/css/reset.css">
     <title>vcode</title>
+    <script type="text/javascript" nonce="2726c7f26c">
+        (function rem() {
+            const docEl = document.documentElement;
+            // 中间视图作为根视图，获取rem base size
+            const width = Math.min(docEl.clientWidth - 180 * 2, 750);
+            const originSize = width / 7.5;
+            docEl.style.fontSize = originSize + 'px';
+            // 修正系统字体调整对rem布局的影响
+            const realSize = parseFloat(window.getComputedStyle(docEl).fontSize);
+            if (originSize !== realSize) {
+                const e = originSize * (originSize / realSize);
+                docEl.style.fontSize = e + 'px';
+            }
+            window.addEventListener('resize', rem);
+        })();
+    </script>
 </head>
 
 <body>

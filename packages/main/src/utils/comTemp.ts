@@ -1,7 +1,7 @@
 export default `
 <template>
     <div class="main">
-        <span>hello world</span>
+        <div class="text">hello world</div>
     </div>
 </template>
 
@@ -9,7 +9,7 @@ export default `
 </script>
 
 <style lang="less" scoped>
-    span {
+    .text {
         color: red;
     }
 </style>
