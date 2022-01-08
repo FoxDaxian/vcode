@@ -30,14 +30,15 @@ import type { RouteRecordRaw, RouteRecordNormalized } from 'vue-router';
 import {
     VmProfix,
     GetCurComponent,
-    UpdateComponent,
-    UpdateRouter,
+    UPDATECOMPONENT,
+    UPDATEROUTER,
     FRESHCACHE
 } from '../../utils/const/index';
 import RouterMenu from './components/routerMenu/index.vue';
 import ipc from '../../preload/src/utils/ipc';
 
 // TODO:
+// 在开发vcode过程中，重启main进程，没有杀掉fork的vite服务，导致一些问题
 // 如何定义路由呢？
 // 某个地方显示所有的页面，选中一个页面后，显示页面内所有的组件
 // jsx支持
@@ -212,7 +213,7 @@ function openEditor({
 
             // 新增路由
             if (insertOrNew) {
-                window.ipc.send(UpdateRouter, {
+                window.ipc.send(UPDATEROUTER, {
                     ...info,
                     insertOrNew,
                     parentRoutePath
@@ -242,7 +243,7 @@ function openEditor({
                 );
                 parentRoute.children.push(newRoute);
             } else {
-                window.ipc.send(UpdateComponent, {
+                window.ipc.send(UPDATECOMPONENT, {
                     ...info,
                     id,
                     pos,
@@ -328,7 +329,6 @@ function getComponentInfo(el: Element) {
 
 function getPos(parent, child, pos, whichPend) {
     let n = 0;
-    let prevDirective;
     let children;
     if (child.parentElement === parent) {
         children = parent.children;
@@ -341,40 +341,28 @@ function getPos(parent, child, pos, whichPend) {
         const curNode = children[i];
         const curDirective = curNode.dataset && curNode.dataset.vcodeDirective;
 
+        let type, start, end;
+        if (curDirective) {
+            [type, start, end] = curDirective.split('-');
+            n = end;
+        }
+
         if (curNode === child) {
-            if (curDirective && curDirective.startsWith('if')) {
+            if (type) {
+                // 如果当前是有被mark
                 if (whichPend === 'append') {
-                    n = i;
+                    pos.unshift(end);
                 } else {
-                    for (let tempi = i - 1; tempi >= 0; --tempi) {
-                        const curNodeForIf = children[tempi];
-                        const curDirectiveForIf =
-                            curNodeForIf.dataset &&
-                            curNodeForIf.dataset.vcodeDirective;
-                        if (curDirectiveForIf !== curDirective) {
-                            break;
-                        }
-                        --n;
-                    }
+                    pos.unshift(start);
                 }
-                pos.unshift(n);
             } else {
-                if (
-                    children[i - 1] &&
-                    children[i - 1].dataset &&
-                    children[i - 1].dataset.vcodeDirective
-                ) {
-                    --n;
-                }
+                // 没有被mark
                 pos.unshift(n);
             }
             break;
         }
-        if (curDirective) {
-            if (prevDirective === curDirective) {
-                continue;
-            }
-            prevDirective = curDirective;
+        if (type) {
+            n = end;
         }
         ++n;
     }

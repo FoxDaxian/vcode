@@ -129,12 +129,13 @@ function appStart() {
     }
 }
 
-const isSingleInstance = app.requestSingleInstanceLock();
+// 是否启动单实例
+// const isSingleInstance = app.requestSingleInstanceLock();
 
-if (!isSingleInstance) {
-    app.quit();
-    process.exit(0);
-}
+// if (!isSingleInstance) {
+//     app.quit();
+//     process.exit(0);
+// }
 
 app.disableHardwareAcceleration();
 

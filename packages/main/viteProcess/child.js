@@ -37,7 +37,6 @@ viteDevServerPromise.then(async (server) => {
 });
 
 function freshCache(vmPath, server) {
-    // console.log(server.moduleGraph.fileToModulesMap.keys(), '===');
     server.moduleGraph.urlToModuleMap.delete(
         vmPath.replace(PROCESSFRESHCACHE, '')
     );
@@ -87,7 +86,6 @@ function hmr(vmPath, server) {
     //     });
     // }
 
-    // TODO 还有样式的更新
     server.ws.send({
         type: 'update',
         updates

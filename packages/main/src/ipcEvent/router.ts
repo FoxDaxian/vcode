@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { UpdateRouter } from '../../../utils/const/index';
+import { UPDATEROUTER } from '../../../utils/const/index';
 import createVm from '../utils/createVm';
 import stringify from '../utils/stringify';
 import type SocketBase from '../../../utils/socket/SockeBase';
@@ -14,7 +14,7 @@ export default ({
     virtual_module: Map<string, Vm>;
     server: SocketBase;
 }) => {
-    ipcMain.on(UpdateRouter, (event, info: RouteInfo) => {
+    ipcMain.on(UPDATEROUTER, (event, info: RouteInfo) => {
         const {
             child,
             source,

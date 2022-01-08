@@ -4,9 +4,16 @@ import router from './router';
 import Editor from '@/components/editor/index';
 import Contextmenu from '@/components/contextmenu/index';
 import 'element-plus/dist/index.css';
-import { ArrowRight, ArrowLeft, ArrowDown, ArrowUp, Minus, Plus } from '@element-plus/icons-vue';
+import {
+    ArrowRight,
+    ArrowLeft,
+    ArrowDown,
+    ArrowUp,
+    Minus,
+    Plus
+} from '@element-plus/icons-vue';
 
-createApp(App)
+createApp(App as any)
     .component('ArrowRight', ArrowRight)
     .component('ArrowLeft', ArrowLeft)
     .component('ArrowDown', ArrowDown)

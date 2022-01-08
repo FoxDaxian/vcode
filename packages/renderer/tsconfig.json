@@ -1,5 +1,7 @@
 {
   "extends": "../../tsconfig.json",
+  "target": "es5",
+  "module": "commonjs",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
