@@ -89,10 +89,14 @@ const config = {
                 }
             },
             transform(code, id) {
-                if (id.startsWith(GetCurComponent)) {
-                    return `const s = \`${
-                        vm.get(id.replace(GetCurComponent, '')).source
-                    }\`;export { s as default }`;
+                try {
+                    if (id.startsWith(GetCurComponent)) {
+                        return `const s = \`${
+                            vm.get(id.replace(GetCurComponent, '')).source
+                        }\`;export { s as default }`;
+                    }
+                } catch (e) {
+                    return 'const s = false;export { s as default }';
                 }
             }
         },

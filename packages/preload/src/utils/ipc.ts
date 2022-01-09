@@ -1,4 +1,5 @@
-import { ContextBridge, IpcRendererEvent, ipcRenderer } from 'electron';
+import type { ContextBridge, IpcRendererEvent } from 'electron';
+import { ipcRenderer } from 'electron';
 
 const apiKey = 'ipc';
 const api = {

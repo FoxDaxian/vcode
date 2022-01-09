@@ -15,17 +15,61 @@
             </div>
             <router-view
                 @click.right="addComponent"
-                @mousemove="addHightlight"
+                @mousemove="hightlightComponent"
                 @mouseout="removeHightlight"
             ></router-view>
         </div>
-        <div class="right-content">我是右侧</div>
+        <div class="right-content">
+            <template v-if="componnetName">
+                <div class="component-name-box">
+                    <span>&lt;</span>
+                    <span class="name">{{
+                        componnetName.replace('.vue', '')
+                    }}</span>
+                    <span>&gt;</span>
+                </div>
+                <div class="component-state-box">
+                    <div
+                        class="component-state-item"
+                        v-for="(states, index) in instanceStates"
+                        :key="index"
+                    >
+                        <div class="component-state-title" v-if="states.length">
+                            {{ stateType[index] }}
+                        </div>
+                        <div
+                            class="component-state-flex"
+                            v-for="state in states"
+                            :key="state.key"
+                        >
+                            <div class="component-state-name">
+                                {{ state.key }}:&nbsp;
+                            </div>
+                            <input
+                                class="component-state-value"
+                                v-model="
+                                    curComInstance.devtoolsRawSetupState[
+                                        state.key
+                                    ]
+                                "
+                                v-if="state.editable"
+                            />
+                            <div class="component-state-value" v-else>
+                                {{ state.value }}
+                            </div>
+                            <!-- {{ state }} -->
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
     </div>
 </template>
 
 <script lang="ts" setup>
 import { getCurrentInstance, ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import type { RouteRecordRaw, RouteRecordNormalized } from 'vue-router';
 import {
     VmProfix,
@@ -35,7 +79,23 @@ import {
     FRESHCACHE
 } from '../../utils/const/index';
 import RouterMenu from './components/routerMenu/index.vue';
-import ipc from '../../preload/src/utils/ipc';
+import { getInstanceState } from '../utils/devTools';
+
+const stateType = [
+    'setup',
+    'setup (other)',
+    'data',
+    'props',
+    'refs',
+    'attrs',
+    'injected',
+    'provided',
+    'invalid'
+];
+const stateTypeindex = stateType.reduce(
+    (res, item, index) => ({ ...res, [item]: index }),
+    {}
+);
 
 // TODO:
 // 在开发vcode过程中，重启main进程，没有杀掉fork的vite服务，导致一些问题
@@ -87,6 +147,8 @@ const matchPath = computed(() => {
 // 从数据库初始化，然后就在这里一直更新，某个时机同步到数据库即可
 // 路由对应获取组件部分可能有问题
 const routerConf = ref<RouteRecordNormalized[]>(initRoutes());
+const componnetName = ref();
+const instanceStates = ref([]);
 
 function jump(path) {
     console.log(path, '===');
@@ -173,24 +235,49 @@ function addComponent($event) {
     });
 }
 async function modify() {
-    const selectEl = element.value;
-    const { id } = getComponentInfo(selectEl);
-    const source = await getSource(id, true);
-    openEditor({ id, source });
+    try {
+        const selectEl = element.value;
+        const { id } = getComponentInfo(selectEl);
+        const source = await getSource(id, true);
+        if (source) {
+            openEditor({ id, source });
+        } else {
+            ElMessage({
+                message: 'can not find component',
+                type: 'warning'
+            });
+        }
+    } catch (e) {
+        console.log('can not find component');
+    }
 }
 async function append() {
     const selectEl = element.value;
     const { id, el: parentEl } = getComponentInfo(selectEl);
     const pos = getPosFromEl(selectEl, parentEl, 'append');
     const source = await getSource(id, false);
-    openEditor({ id, source, pos, updateSelf: false });
+    if (source) {
+        openEditor({ id, source, pos, updateSelf: false });
+    } else {
+        ElMessage({
+            message: 'can not find component',
+            type: 'warning'
+        });
+    }
 }
 async function prepend() {
     const selectEl = element.value;
     const { id, el: parentEl } = getComponentInfo(selectEl);
     const pos = getPosFromEl(selectEl, parentEl, 'prepend');
     const source = await getSource(id, false);
-    openEditor({ id, source, pos, updateSelf: false, prepend: true });
+    if (source) {
+        openEditor({ id, source, pos, updateSelf: false, prepend: true });
+    } else {
+        ElMessage({
+            message: 'can not find component',
+            type: 'warning'
+        });
+    }
 }
 
 function openEditor({
@@ -282,46 +369,59 @@ function getPosFromEl(curEl, parentEl, whichPend) {
 }
 
 async function getSource(id, updateSelf) {
-    let source = [
-        '<template>',
-        '    <div class="ttt">',
-        '        <h1>占位用的</h1>',
-        '    </div>',
-        '</template>',
-        '<script lang="ts" setup>',
-        '<' + '/script>',
-        '<style lang="less" scoped>',
-        '</style>'
-    ].join('\n');
-    if (updateSelf) {
-        // GetCurComponent这个标志真的有必要吗？
-        window.ipc.send(FRESHCACHE, {
-            id: `${GetCurComponent}${id.replace(VmProfix, '')}`
-        });
-        const { default: code } = await import(
-            /* @vite-ignore */ `${GetCurComponent}${id.replace(
-                VmProfix,
-                ''
-            )}?t=${Date.now()}`
-        );
-        source = code;
+    try {
+        let source = [
+            '<template>',
+            '    <div class="ttt">',
+            '        <h1>占位用的</h1>',
+            '    </div>',
+            '</template>',
+            '<script lang="ts" setup>',
+            '<' + '/script>',
+            '<style lang="less" scoped>',
+            '</style>'
+        ].join('\n');
+        if (updateSelf) {
+            // TODO: GetCurComponent这个标志真的有必要吗？
+            window.ipc.send(FRESHCACHE, {
+                id: `${GetCurComponent}${id.replace(VmProfix, '')}`
+            });
+            const { default: code } = await import(
+                /* @vite-ignore */ `${GetCurComponent}${id.replace(
+                    VmProfix,
+                    ''
+                )}?t=${Date.now()}`
+            );
+            source = code;
+        }
+        return source;
+    } catch (e) {
+        console.log('can not find component');
     }
-    return source;
 }
 
-function addHightlight($event) {
-    const { el } = getComponentInfo($event.target);
+function hightlightComponent($event) {
+    const { el, id } = getComponentInfo($event.target);
+    componnetName.value = id.split(window.path.sep).pop();
     !el.classList.contains('hightlight') && el.classList.add('hightlight');
 }
 function removeHightlight($event) {
     const { el } = getComponentInfo($event.target);
     el.classList.contains('hightlight') && el.classList.remove('hightlight');
 }
+const curComInstance = ref();
 function getComponentInfo(el: Element) {
     let elWithVnode = el;
     while (!elWithVnode.__vueParentComponent) {
         elWithVnode = elWithVnode.parentElement;
     }
+    const instanceState = getInstanceState(elWithVnode.__vueParentComponent);
+    const _instanceStates = stateType.map(() => []);
+    instanceState.forEach((item) =>
+        _instanceStates[stateTypeindex[item.type]].push(item)
+    );
+    instanceStates.value = _instanceStates;
+    curComInstance.value = elWithVnode.__vueParentComponent;
     const parentEl = elWithVnode.__vueParentComponent.vnode.el;
     const id = elWithVnode.__vueParentComponent.type.__file;
     return { el: parentEl, id };
@@ -420,6 +520,47 @@ function initRoutes() {
 }
 .right-content {
     box-shadow: #000000 6px 0 6px -6px inset;
+    box-sizing: border-box;
+    padding: 0 10px;
+    background-color: #0c1015;
+    .component-name-box {
+        box-sizing: border-box;
+        padding: 10px 0;
+        color: #4d5962;
+        .name {
+            color: #63b284;
+        }
+    }
+    .component-state-box {
+        .component-state-item {
+            box-sizing: border-box;
+        }
+        .component-state-title {
+            width: 100%;
+            padding-top: 10px;
+            border-top: 1px dashed #4a4a4a;
+            color: #7a94b1;
+            margin-top: 10px;
+        }
+        .component-state-flex {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .component-state-name {
+            color: #bc9de6;
+        }
+        .component-state-value {
+            width: 100%;
+            color: #d24c42;
+        }
+        input.component-state-value {
+            border: 1px solid #4a4a4a;
+            padding: 4px;
+            box-sizing: border-box;
+            outline: none;
+        }
+    }
 }
 .btn-wrap {
     display: flex;

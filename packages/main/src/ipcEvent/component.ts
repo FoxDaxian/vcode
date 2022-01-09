@@ -160,14 +160,14 @@ function markDirectiveViaAst(ast: RootNode, s: MagicString) {
 }
 
 function addIfAttr(
-    vIfNodes: PropNodes,
+    pNodes: PropNodes,
     s: MagicString,
     prefix: string
 ) {
-    const end = vIfNodes.size;
+    const end = pNodes.size;
     if (end) {
-        const start = +[...vIfNodes.keys()][0].indexOfParent;
-        vIfNodes.forEach((node, info) => {
+        const start = +[...pNodes.keys()][0].indexOfParent;
+        pNodes.forEach((node, info) => {
             // 看看有没有data-set，有的话得获取位置，然后覆盖掉
             const existProp = node.props.find(
                 (p) => p.type === 6 && p.name === MARKFOROP
@@ -187,7 +187,7 @@ function addIfAttr(
                 );
             }
         });
-        vIfNodes.clear();
+        pNodes.clear();
     }
 }
 

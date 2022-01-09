@@ -1,5 +1,5 @@
-import { ContextBridge } from 'electron';
-import { ElectronApi } from '@/types/electron-api';
+import type { ContextBridge } from 'electron';
+import type { ElectronApi } from '@/types/electron-api';
 
 const apiKey = 'electron';
 /**

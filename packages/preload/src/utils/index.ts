@@ -1,4 +1,4 @@
-import { ContextBridge } from 'electron';
+import type { ContextBridge } from 'electron';
 import electronApiInit from './electronApi';
 import pathInit from './path';
 import ipcInit from './ipc';
