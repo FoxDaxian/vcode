@@ -12,63 +12,27 @@
         </div>
     </div>
 </template>
-<script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted } from 'vue';
+<script lang="ts" setup>
+import { ref, onMounted, onUnmounted } from 'vue';
 
-export default defineComponent({
-    name: 'myContextmenu',
-    emits: ['destroy'],
-    props: {
-        x: {
-            type: Number,
-            default: 0
-        },
-        y: {
-            type: Number,
-            default: 0
-        },
-        menuItems: {
-            type: Array,
-            default() {
-                return [];
-            }
-        }
-        // onTrigger: {
-        //     type: Function,
-        //     default: () => {
-        //         //
-        //     }
-        // }
-    },
-    setup(
-        props: {
-            update: ({ child: string, source: string }) => void;
-            cancel: () => void;
-        },
-        context: { emit: () => void }
-    ) {
-        const visible = ref(true);
-        const close = () => {
-            visible.value = false;
-            context.emit('destroy');
-        };
-        function escape(e: KeyboardEvent) {
-            if (e.keyCode === 27) {
-                close();
-            }
-        }
-        onMounted(() => {
-            document.addEventListener('keydown', escape);
-        });
-        onUnmounted(() => {
-            document.removeEventListener('keydown', escape);
-        });
+const emit = defineEmits(['destroy']);
+defineProps(['x', 'y', 'menuItems']);
 
-        return {
-            close,
-            visible
-        };
+const visible = ref(true);
+const close = () => {
+    visible.value = false;
+    emit('destroy');
+};
+function escape(e: KeyboardEvent) {
+    if (e.keyCode === 27) {
+        close();
     }
+}
+onMounted(() => {
+    document.addEventListener('keydown', escape);
+});
+onUnmounted(() => {
+    document.removeEventListener('keydown', escape);
 });
 </script>
 <style lang="less" scoped>

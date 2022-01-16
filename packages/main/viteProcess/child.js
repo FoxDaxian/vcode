@@ -42,12 +42,38 @@ function freshCache(vmPath, server) {
     );
 }
 
+function invalidate(mod, timestamp, seen) {
+    if (seen.has(mod)) {
+        return;
+    }
+    seen.add(mod);
+    mod.lastHMRTimestamp = timestamp;
+    mod.transformResult = null;
+    mod.ssrModule = null;
+    mod.ssrTransformResult = null;
+    mod.importers.forEach((importer) => {
+        // 更新引入和这个模块的importers
+        if (!importer.acceptedHmrDeps.has(mod)) {
+            invalidate(importer, timestamp, seen);
+        }
+    });
+}
 function hmr(vmPath, server) {
     const modules = server.moduleGraph.getModulesByFile(vmPath);
+    if (!modules) {
+        return;
+    }
+    let needFullReload = false;
     const updates = [];
+    const invalidatedModules = new Set();
     const timestamp = Date.now();
 
     for (const mod of modules) {
+        invalidate(mod, timestamp, invalidatedModules);
+        if (needFullReload) {
+            continue;
+        }
+
         const boundaries = new Set();
         const hasDeadEnd = propagateUpdate(mod, boundaries);
         if (hasDeadEnd) {
@@ -65,26 +91,6 @@ function hmr(vmPath, server) {
     }
 
     server.moduleGraph.onFileChange(vmPath);
-    // const invalidatedModules = new Set();
-    // for (const mod of modes) {
-    //     invalidate(mod, timestamp, invalidatedModules);
-    // }
-
-    // function invalidate(mod, timestamp, seen) {
-    //     if (seen.has(mod)) {
-    //         return;
-    //     }
-    //     seen.add(mod);
-    //     mod.lastHMRTimestamp = timestamp;
-    //     mod.transformResult = null;
-    //     mod.ssrModule = null;
-    //     mod.ssrTransformResult = null;
-    //     mod.importers.forEach((importer) => {
-    //         if (!importer.acceptedHmrDeps.has(mod)) {
-    //             invalidate(importer, timestamp, seen);
-    //         }
-    //     });
-    // }
 
     server.ws.send({
         type: 'update',

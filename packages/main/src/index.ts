@@ -8,9 +8,13 @@ import stringify from './utils/stringify';
 import comTemp from './utils/comTemp';
 import ipcRouter from './ipcEvent/router';
 import ipcComponent from './ipcEvent/component';
+import ipcCommonUtils from './ipcEvent/commonUtils';
+import ipcAddComponentByDrag from './ipcEvent/addComponentByDrag';
 import ipcFreshCache from './ipcEvent/freshCache';
+import { GETALLCOM, GETALLUTIL } from '../../utils/const/index';
 
 const virtual_module = new Map<string, Vm>();
+const virtual_util = new Map<string, Util>();
 
 // 根组件
 const pageRootPath = '/src/page';
@@ -27,6 +31,9 @@ const server = new Server();
 server.connect().then(() => {
     server.on('fetchAllVm', () => {
         server.send('fetchAllVm', stringify(virtual_module));
+    });
+    server.on('fetchAllUtil', () => {
+        server.send('fetchAllUtil', stringify(virtual_util));
     });
 });
 
@@ -75,12 +82,25 @@ const createWindow = async () => {
         server,
         pageRootPath
     });
+
+    ipcAddComponentByDrag({
+        virtual_module,
+        server,
+        viteServer
+    });
+
     ipcComponent({
         virtual_module,
         server,
         viteServer
     });
     ipcFreshCache({
+        viteServer
+    });
+
+    ipcCommonUtils({
+        virtual_util,
+        server,
         viteServer
     });
 
@@ -92,6 +112,17 @@ const createWindow = async () => {
      */
     mainWindow.on('ready-to-show', () => {
         mainWindow?.show();
+
+        mainWindow?.webContents.send(
+            GETALLCOM,
+            [...virtual_module.values()]
+                .map((vm) => vm.path)
+                .filter((p) => p !== '/src/page/mainContent.vue')
+        );
+        mainWindow?.webContents.send(
+            GETALLUTIL,
+            [...virtual_util.values()].map((vm) => vm.path)
+        );
 
         if (import.meta.env.MODE === 'development') {
             mainWindow?.webContents.openDevTools();

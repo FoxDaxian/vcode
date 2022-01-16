@@ -19,109 +19,54 @@
                 :disabled="componentName === 'mainContent'"
             ></ElInput>
         </div>
-        <div class="editor" ref="editor"></div>
+        <Base :sourceText="sourceText" @getResult="getResult" />
         <div class="btns">
             <div class="confim" @click="ipcUpdate">update</div>
             <div class="cancel" @click="cancel">close</div>
         </div>
     </div>
 </template>
-<script lang="ts">
+<script lang="ts" setup>
 import { ElInput } from 'element-plus';
-import { defineComponent, ref, onMounted, nextTick } from 'vue';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { ref } from 'vue';
+import Base from './base.vue';
 
-export default defineComponent({
-    name: 'myEditor',
-    emits: ['destroy'],
-    components: {
-        ElInput
-    },
-    props: {
-        insertOrNew: {
-            type: String,
-            default: ''
-        },
-        parentRoutePath: {
-            type: String,
-            default: ''
-        },
-        id: {
-            type: String,
-            default: ''
-        },
-        sourceText: {
-            type: String,
-            default: ''
-        },
-        update: {
-            type: Function,
-            default() {
-                /** */
-            }
-        },
-        cancel: {
-            type: Function,
-            default() {
-                /** */
-            }
-        }
-    },
-    setup(
-        props: {
-            update: ({ child: string, source: string }) => void;
-            cancel: () => void;
-        },
-        context: { emit: () => void }
-    ) {
-        const visible = ref(true);
-        const fileName = props.id.split('/').pop().split('.')[0];
-        const componentName = ref(fileName);
-        const routeName = ref('');
-        const routePath = ref('');
+const props = defineProps([
+    'insertOrNew',
+    'parentRoutePath',
+    'id',
+    'sourceText',
+    'update',
+    'cancel'
+]);
+const emit = defineEmits(['destroy']);
 
-        const close = () => {
-            visible.value = false;
-            context.emit('destroy');
-        };
+const visible = ref(true);
+const fileName = props.id.split('/').pop().split('.')[0];
+const componentName = ref(fileName);
+const routeName = ref('');
+const routePath = ref('');
 
-        const editor = ref(null);
+const close = () => {
+    visible.value = false;
+    emit('destroy');
+};
+const code = ref<string>(props.sourceText);
+function getResult(result) {
+    code.value = result;
+}
 
-        const code = ref(props.sourceText);
-        onMounted(async () => {
-            await nextTick();
-            const e = monaco.editor.create(editor.value, {
-                value: code.value,
-                language: 'typescript',
-                theme: 'vs-dark'
-            });
-            e.onDidChangeModelContent(() => {
-                code.value = e.getValue();
-            });
-        });
-        const ipcUpdate = () => {
-            if (!componentName.value) {
-                return;
-            }
-            props.update({
-                routePath: routePath.value,
-                routeName: routeName.value,
-                child: componentName.value,
-                source: code.value
-            });
-        };
-
-        return {
-            routeName,
-            routePath,
-            ipcUpdate,
-            componentName,
-            editor,
-            close,
-            visible
-        };
+const ipcUpdate = () => {
+    if (!componentName.value) {
+        return;
     }
-});
+    props.update({
+        routePath: routePath.value,
+        routeName: routeName.value,
+        child: componentName.value,
+        source: code.value
+    });
+};
 </script>
 <style lang="less" scoped>
 .editor-wrap {
@@ -140,9 +85,6 @@ export default defineComponent({
 .header-info {
     box-sizing: border-box;
     padding: 10px 0;
-}
-.editor {
-    flex: 1;
 }
 .btns {
     height: 32px;

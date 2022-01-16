@@ -4,7 +4,7 @@ declare interface Info {
     updateSelf: boolean;
     prepend?: boolean;
     source: string;
-    child: string;
+    child: string; // 拖拽式添加的时候是path，其他情况是新增的子组件名
     insertOrNew?: string;
     parentRoutePath?: string;
     routePath?: string;
@@ -25,6 +25,12 @@ declare const ROOTCOM: string;
 
 // VirtualModule
 declare interface Vm {
+    path: string;
+    source: string;
+    childComponent?: Map<string, Vm>;
+}
+
+declare interface Util {
     path: string;
     source: string;
     childComponent?: Map<string, Vm>;

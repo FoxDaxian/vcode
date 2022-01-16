@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { UPDATEROUTER } from '../../../utils/const/index';
+import { UPDATEROUTER, GETALLCOM } from '../../../utils/const/index';
 import createVm from '../utils/createVm';
 import stringify from '../utils/stringify';
 import type SocketBase from '../../../utils/socket/SockeBase';
@@ -23,7 +23,6 @@ export default ({
             routePath,
             routeName
         } = info;
-        console.log(parentRoutePath, routePath, routeName, 'parentRoutePath');
         // about router
         // 得拆分啊，一个是更新组件的，一个是更新路由的，最小原子原则
         const pageComPath = join(
@@ -36,6 +35,13 @@ export default ({
             source: source
         });
         virtual_module.set(module.path, module);
+        // 通知变动的组件
+        event.reply(
+            GETALLCOM,
+            [...virtual_module.values()]
+                .map((vm) => vm.path)
+                .filter((p) => p !== '/src/page/mainContent.vue')
+        );
         server.send('getVm', stringify(virtual_module));
     });
 };

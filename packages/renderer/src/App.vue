@@ -7,6 +7,17 @@
                 @jump="jump"
                 :routerConf="routerConf"
             ></RouterMenu>
+            <ComponentsView
+                @onMove="comDragMove"
+                @onUp="comDragUp"
+                @onComponentHover="comHover"
+                @onComponentLeave="comLeave"
+                :activeComPath="hightlightComPath"
+            ></ComponentsView>
+            <CommonUtilsView
+                @add="addUtil"
+                @modify="modifyUtil"
+            ></CommonUtilsView>
         </div>
         <div class="virtual-browser">
             <!-- 模拟地址栏 -->
@@ -20,48 +31,11 @@
             ></router-view>
         </div>
         <div class="right-content">
-            <template v-if="componnetName">
-                <div class="component-name-box">
-                    <span>&lt;</span>
-                    <span class="name">{{
-                        componnetName.replace('.vue', '')
-                    }}</span>
-                    <span>&gt;</span>
-                </div>
-                <div class="component-state-box">
-                    <div
-                        class="component-state-item"
-                        v-for="(states, index) in instanceStates"
-                        :key="index"
-                    >
-                        <div class="component-state-title" v-if="states.length">
-                            {{ stateType[index] }}
-                        </div>
-                        <div
-                            class="component-state-flex"
-                            v-for="state in states"
-                            :key="state.key"
-                        >
-                            <div class="component-state-name">
-                                {{ state.key }}:&nbsp;
-                            </div>
-                            <input
-                                class="component-state-value"
-                                v-model="
-                                    curComInstance.devtoolsRawSetupState[
-                                        state.key
-                                    ]
-                                "
-                                v-if="state.editable"
-                            />
-                            <div class="component-state-value" v-else>
-                                {{ state.value }}
-                            </div>
-                            <!-- {{ state }} -->
-                        </div>
-                    </div>
-                </div>
-            </template>
+            <InstanceState
+                v-model:curComInstance.sync="curComInstance"
+                :componentName="componentName"
+                :instanceStates="instanceStates"
+            ></InstanceState>
         </div>
     </div>
 </template>
@@ -70,34 +44,47 @@
 import { getCurrentInstance, ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import type { RouteRecordRaw, RouteRecordNormalized } from 'vue-router';
+import type { RouteRecordNormalized } from 'vue-router';
 import {
     VmProfix,
+    UtilProfix,
     GetCurComponent,
+    GetCurUtil,
     UPDATECOMPONENT,
     UPDATEROUTER,
-    FRESHCACHE
-} from '../../utils/const/index';
+    FRESHCACHE,
+    ADDCOMPONENTBYDRAG,
+    UPDATECOMMONUTILS,
+    TIPS
+} from '../../utils/const/';
 import RouterMenu from './components/routerMenu/index.vue';
-import { getInstanceState } from '../utils/devTools';
+import ComponentsView from './components/componentsView/index.vue';
+import CommonUtilsView from './components/commonUtilsView/index.vue';
+import InstanceState, { stateType } from './components/instanceState/index.vue';
+import {
+    memoData,
+    getComponentName,
+    noop,
+    getInstanceState as devtoolsGetInstanceState
+} from '../utils/';
 
-const stateType = [
-    'setup',
-    'setup (other)',
-    'data',
-    'props',
-    'refs',
-    'attrs',
-    'injected',
-    'provided',
-    'invalid'
-];
+window.ipc.on(TIPS, (event, tips) => {
+    ElMessage({
+        message: tips,
+        type: 'warning'
+    });
+});
+
 const stateTypeindex = stateType.reduce(
     (res, item, index) => ({ ...res, [item]: index }),
     {}
 );
 
 // TODO:
+// 已经添加进来的组件，搞成可拖拽的
+// hover得加个定时器，不然没法看到又得组件的相关状态
+// 当修改组件的时候，组件的相关状态得清除掉，或者想办法同步回file里？？？
+
 // 在开发vcode过程中，重启main进程，没有杀掉fork的vite服务，导致一些问题
 // 如何定义路由呢？
 // 某个地方显示所有的页面，选中一个页面后，显示页面内所有的组件
@@ -147,8 +134,102 @@ const matchPath = computed(() => {
 // 从数据库初始化，然后就在这里一直更新，某个时机同步到数据库即可
 // 路由对应获取组件部分可能有问题
 const routerConf = ref<RouteRecordNormalized[]>(initRoutes());
-const componnetName = ref();
+const componentName = ref();
 const instanceStates = ref([]);
+
+let lastEl: Element;
+function comDragMove(x, y, dragedComPath) {
+    if (lastEl) {
+        lastEl.classList.remove('prepend');
+        lastEl.classList.remove('append');
+    }
+    let el = document.elementFromPoint(x, y);
+    lastEl = el;
+
+    if (!memoData.rootCom.contains(el)) {
+        return;
+    }
+    const { el: parentEl, id } = getComponentInfo(el);
+    if (id.replace(VmProfix, '') === dragedComPath) {
+        return;
+    }
+    if (el === parentEl) {
+        return;
+    }
+    const { bottom, height } = el.getBoundingClientRect();
+    const midLine = (bottom - height / 2) >> 0;
+    if (y > midLine) {
+        el.classList.add('append');
+    } else {
+        el.classList.add('prepend');
+    }
+}
+function comDragUp(x, y, dragedComPath) {
+    lastEl.classList.remove('prepend');
+    lastEl.classList.remove('append');
+    let el = document.elementFromPoint(x, y);
+
+    if (!memoData.rootCom.contains(el)) {
+        return;
+    }
+    const { id, el: parentEl } = getComponentInfo(el);
+    if (id.replace(VmProfix, '') === dragedComPath) {
+        return;
+    }
+    if (el === parentEl) {
+        return;
+    }
+    const { bottom, height } = el.getBoundingClientRect();
+    const midLine = bottom - height / 2;
+    let pos;
+    let prepend = false;
+    if (y > midLine) {
+        pos = getPosFromEl(el, parentEl, 'append');
+    } else {
+        prepend = true;
+        pos = getPosFromEl(el, parentEl, 'prepend');
+    }
+    // 拖拽组件更新页面
+    window.ipc.send(ADDCOMPONENTBYDRAG, {
+        id,
+        pos,
+        prepend,
+        child: dragedComPath
+    });
+}
+
+let lastHightlightChildren: Element[] = [];
+let lastComPath;
+function comLeave() {
+    for (const c of lastHightlightChildren) {
+        c.classList.remove('hightlight');
+    }
+    lastHightlightChildren = [];
+    lastComPath = '';
+}
+function comHover(comPath) {
+    if (lastComPath === comPath) {
+        return;
+    }
+    lastComPath = comPath;
+    const children = memoData.rootCom?.children;
+    type Children = typeof children;
+    function dfs(children: Children) {
+        if (!children) {
+            return;
+        }
+        for (let i = 0, len = children.length; i < len; ++i) {
+            const cur = children[i];
+            if (cur.__vueParentComponent.type.__file === comPath) {
+                lastHightlightChildren.push(cur);
+                cur.classList.add('hightlight');
+                continue;
+            }
+            dfs(cur.children);
+        }
+    }
+    dfs(memoData.rootCom?.children);
+}
 
 function jump(path) {
     console.log(path, '===');
@@ -164,7 +245,7 @@ async function addRoute($event, info) {
                 label: 'insert route',
                 async callback() {
                     const { path } = info;
-                    const source = await getSource('', false);
+                    const source = await getComSource('', false);
                     openEditor({
                         source,
                         insertOrNew: 'insert',
@@ -172,19 +253,21 @@ async function addRoute($event, info) {
                         parentRoutePath: path,
                         parentRouteName: router
                             .getRoutes()
-                            .filter((route) => route.path === path)[0].name
+                            .filter((route) => route.path === path)[0].name,
+                        onConfirm: comOrRouterConfirm
                     });
                 }
             },
             // TODO: 删 改 + 整体数据库 数据库是否也要加一个版本控制？因为没有git了
-            // 对了，git咋集成呢。。
+            // 增加了props后hmr更新还是有问题
+            // 对了，git咋集成呢。。 利用gitignore
             // 或者说git提交的是虚拟文件 + 产出的结果，而不是传统的那种文件内容了
             // 看来必须得是产出的结果，不然code review的时候不太好看啊
             {
                 label: 'delete route',
                 async callback() {
                     const { path } = info;
-                    const source = await getSource('', false);
+                    const source = await getComSource('', false);
                     openEditor({
                         source,
                         insertOrNew: 'delete',
@@ -192,7 +275,50 @@ async function addRoute($event, info) {
                         parentRoutePath: path,
                         parentRouteName: router
                             .getRoutes()
-                            .filter((route) => route.path === path)[0].name
+                            .filter((route) => route.path === path)[0].name,
+                        onConfirm: comOrRouterConfirm
+                    });
+                }
+            }
+        ]
+    });
+}
+
+async function addUtil() {
+    openEditor({
+        source: 'export default {name: 123}',
+        updateSelf: false,
+        onConfirm({ info }) {
+            const { child, source } = info;
+            window.ipc.send(UPDATECOMMONUTILS, {
+                id: child,
+                source
+            });
+        }
+    });
+}
+
+function modifyUtil(x, y, utilId) {
+    app.$openContextmenu({
+        x,
+        y,
+        menuItems: [
+            {
+                label: 'modify',
+                async callback() {
+                    const source = await getUtilSource(utilId);
+                    openEditor({
+                        id: utilId,
+                        source,
+                        updateSelf: true,
+                        onConfirm({ info }) {
+                            const { child, source } = info;
+                            window.ipc.send(UPDATECOMMONUTILS, {
+                                id: child,
+                                source,
+                                update: true
+                            });
+                        }
                     });
                 }
             }
@@ -238,9 +364,9 @@ async function modify() {
     try {
         const selectEl = element.value;
         const { id } = getComponentInfo(selectEl);
-        const source = await getSource(id, true);
+        const source = await getComSource(id, true);
         if (source) {
-            openEditor({ id, source });
+            openEditor({ id, source, onConfirm: comOrRouterConfirm });
         } else {
             ElMessage({
                 message: 'can not find component',
@@ -255,9 +381,15 @@ async function append() {
     const selectEl = element.value;
     const { id, el: parentEl } = getComponentInfo(selectEl);
     const pos = getPosFromEl(selectEl, parentEl, 'append');
-    const source = await getSource(id, false);
+    const source = await getComSource(id, false);
     if (source) {
-        openEditor({ id, source, pos, updateSelf: false });
+        openEditor({
+            id,
+            source,
+            pos,
+            updateSelf: false,
+            onConfirm: comOrRouterConfirm
+        });
     } else {
         ElMessage({
             message: 'can not find component',
@@ -269,13 +401,66 @@ async function prepend() {
     const selectEl = element.value;
     const { id, el: parentEl } = getComponentInfo(selectEl);
     const pos = getPosFromEl(selectEl, parentEl, 'prepend');
-    const source = await getSource(id, false);
+    const source = await getComSource(id, false);
     if (source) {
-        openEditor({ id, source, pos, updateSelf: false, prepend: true });
+        openEditor({
+            id,
+            source,
+            pos,
+            updateSelf: false,
+            prepend: true,
+            onConfirm: comOrRouterConfirm
+        });
     } else {
         ElMessage({
             message: 'can not find component',
             type: 'warning'
+        });
+    }
+}
+
+function comOrRouterConfirm({
+    insertOrNew,
+    parentRoutePath,
+    parentRouteName,
+    id,
+    pos,
+    updateSelf,
+    prepend,
+    info
+}) {
+    if (insertOrNew) {
+        window.ipc.send(UPDATEROUTER, {
+            ...info,
+            insertOrNew,
+            parentRoutePath
+        });
+        const routePath = parentRoutePath + info.routePath;
+        let vmBasePath = `${VmProfix}${PAGEPATH}${parentRoutePath}`;
+        vmBasePath = vmBasePath.endsWith('/') ? vmBasePath : vmBasePath + '/';
+        router.addRoute(parentRouteName, {
+            name: info.routeName,
+            path: routePath,
+            component: () =>
+                import(/* @vite-ignore */ `${vmBasePath}${info.child}.vue`)
+        });
+        const newRoute = router
+            .getRoutes()
+            .filter((route) => route.path === routePath)[0];
+        if (!newRoute) {
+            console.log('插入新路由失败，请重试');
+        }
+        const parentRoute = getParentRoute(routerConf.value, parentRoutePath);
+        parentRoute.children.push(newRoute);
+    } else {
+        window.ipc.send(UPDATECOMPONENT, {
+            ...info,
+            id,
+            pos,
+            updateSelf,
+            prepend,
+            insertOrNew,
+            parentRoutePath
         });
     }
 }
@@ -288,7 +473,8 @@ function openEditor({
     prepend = false,
     insertOrNew = '',
     parentRoutePath = '',
-    parentRouteName = ''
+    parentRouteName = '',
+    onConfirm = noop
 }) {
     const closeEditor = app.$openEditor({
         insertOrNew,
@@ -296,50 +482,16 @@ function openEditor({
         id: updateSelf ? id : '',
         sourceText: source,
         update(info) {
-            // 新增路由还有有问题，新增路由怎么新增平级的呢？需要这个功能么？
-
-            // 新增路由
-            if (insertOrNew) {
-                window.ipc.send(UPDATEROUTER, {
-                    ...info,
-                    insertOrNew,
-                    parentRoutePath
-                });
-                const routePath = parentRoutePath + info.routePath;
-                let vmBasePath = `${VmProfix}${PAGEPATH}${parentRoutePath}`;
-                vmBasePath = vmBasePath.endsWith('/')
-                    ? vmBasePath
-                    : vmBasePath + '/';
-                router.addRoute(parentRouteName, {
-                    name: info.routeName,
-                    path: routePath,
-                    component: () =>
-                        import(
-                            /* @vite-ignore */ `${vmBasePath}${info.child}.vue`
-                        )
-                });
-                const newRoute = router
-                    .getRoutes()
-                    .filter((route) => route.path === routePath)[0];
-                if (!newRoute) {
-                    console.log('插入新路由失败，请重试');
-                }
-                const parentRoute = getParentRoute(
-                    routerConf.value,
-                    parentRoutePath
-                );
-                parentRoute.children.push(newRoute);
-            } else {
-                window.ipc.send(UPDATECOMPONENT, {
-                    ...info,
-                    id,
-                    pos,
-                    updateSelf,
-                    prepend,
-                    insertOrNew,
-                    parentRoutePath
-                });
-            }
+            onConfirm({
+                id,
+                pos,
+                updateSelf,
+                prepend,
+                insertOrNew,
+                parentRoutePath,
+                parentRouteName,
+                info
+            });
             closeEditor();
         },
         cancel() {
@@ -368,7 +520,7 @@ function getPosFromEl(curEl, parentEl, whichPend) {
     return pos;
 }
 
-async function getSource(id, updateSelf) {
+async function getComSource(id, updateSelf) {
     try {
         let source = [
             '<template>',
@@ -400,13 +552,34 @@ async function getSource(id, updateSelf) {
     }
 }
 
+async function getUtilSource(id) {
+    try {
+        // 工具方法，更新后，无法拉取最新的，被vite拦截返回缓存了...
+        // 还是看veit 的 ensureEntryFromUrl 方法
+        window.ipc.send(FRESHCACHE, {
+            id: `${GetCurUtil}${id}`
+        });
+        return (
+            await import(
+                /* @vite-ignore */ `${GetCurUtil}${id}?t=${Date.now()}`
+            )
+        ).default;
+    } catch (e) {
+        console.log('can not find component');
+    }
+}
+
+const hightlightComPath = ref('');
 function hightlightComponent($event) {
-    const { el, id } = getComponentInfo($event.target);
-    componnetName.value = id.split(window.path.sep).pop();
+    const { el, id, instance } = getComponentInfo($event.target);
+    getInstanceState(instance);
+    hightlightComPath.value = id;
+    componentName.value = getComponentName(id);
     !el.classList.contains('hightlight') && el.classList.add('hightlight');
 }
 function removeHightlight($event) {
     const { el } = getComponentInfo($event.target);
+    hightlightComPath.value = '';
     el.classList.contains('hightlight') && el.classList.remove('hightlight');
 }
 const curComInstance = ref();
@@ -415,16 +588,22 @@ function getComponentInfo(el: Element) {
     while (!elWithVnode.__vueParentComponent) {
         elWithVnode = elWithVnode.parentElement;
     }
-    const instanceState = getInstanceState(elWithVnode.__vueParentComponent);
+    return {
+        el: elWithVnode.__vueParentComponent.vnode.el,
+        id: elWithVnode.__vueParentComponent.type.__file,
+        instance: elWithVnode.__vueParentComponent
+    };
+}
+
+// 获取当前组件实例和组件的状态
+function getInstanceState(instance) {
+    const instanceState = devtoolsGetInstanceState(instance);
     const _instanceStates = stateType.map(() => []);
     instanceState.forEach((item) =>
         _instanceStates[stateTypeindex[item.type]].push(item)
     );
     instanceStates.value = _instanceStates;
-    curComInstance.value = elWithVnode.__vueParentComponent;
-    const parentEl = elWithVnode.__vueParentComponent.vnode.el;
-    const id = elWithVnode.__vueParentComponent.type.__file;
-    return { el: parentEl, id };
+    curComInstance.value = instance;
 }
 
 function getPos(parent, child, pos, whichPend) {
@@ -499,12 +678,20 @@ function initRoutes() {
 .hightlight {
     background-color: rgba(0, 0, 0, 0.1);
 }
+.append {
+    box-shadow: 0 2px 0 0 #76b088;
+    outline: ;
+}
+.prepend {
+    box-shadow: 0 -2px 0 0 #76b088;
+}
 </style>
 <style lang="less" scoped>
 .app {
     height: 100%;
     display: flex;
 }
+// TODO: less 如何添加统一的样式，还有不同的风格或者暗黑模式
 .virtual-browser {
     width: calc(100vw - 360px);
     display: flex;
@@ -516,51 +703,18 @@ function initRoutes() {
     width: 180px;
 }
 .left-content {
+    display: flex;
+    flex-direction: column;
+    // justify-content: space-between;
     box-shadow: #000000 -6px 0 6px -6px inset;
 }
 .right-content {
+    height: 100%;
+    overflow: auto;
     box-shadow: #000000 6px 0 6px -6px inset;
     box-sizing: border-box;
     padding: 0 10px;
     background-color: #0c1015;
-    .component-name-box {
-        box-sizing: border-box;
-        padding: 10px 0;
-        color: #4d5962;
-        .name {
-            color: #63b284;
-        }
-    }
-    .component-state-box {
-        .component-state-item {
-            box-sizing: border-box;
-        }
-        .component-state-title {
-            width: 100%;
-            padding-top: 10px;
-            border-top: 1px dashed #4a4a4a;
-            color: #7a94b1;
-            margin-top: 10px;
-        }
-        .component-state-flex {
-            margin-top: 10px;
-            display: flex;
-            align-items: center;
-        }
-        .component-state-name {
-            color: #bc9de6;
-        }
-        .component-state-value {
-            width: 100%;
-            color: #d24c42;
-        }
-        input.component-state-value {
-            border: 1px solid #4a4a4a;
-            padding: 4px;
-            box-sizing: border-box;
-            outline: none;
-        }
-    }
 }
 .btn-wrap {
     display: flex;

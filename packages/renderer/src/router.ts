@@ -16,7 +16,10 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
-    next();
+    if (!to.matched.length) {
+        next('/');
+    }
+    next()
 });
 
 export default router;

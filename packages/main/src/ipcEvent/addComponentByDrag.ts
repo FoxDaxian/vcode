@@ -1,14 +1,13 @@
 import { ipcMain } from 'electron';
-import createVm from '../utils/createVm';
 import MagicString from 'magic-string';
-import { join, parse } from 'path';
+import { sep } from 'path';
 import stringify from '../utils/stringify';
 import { parse as sfcParse } from '@vue/compiler-dom';
 import {
     VmProfix,
-    UPDATECOMPONENT,
     MARKFOROP,
-    GETALLCOM
+    ADDCOMPONENTBYDRAG,
+    TIPS
 } from '../../../utils/const/index';
 import getAstPos from '../utils/getAstPos';
 import type SocketBase from '../../../utils/socket/SockeBase';
@@ -28,48 +27,45 @@ export default ({
     server: SocketBase;
     viteServer: ChildProcess;
 }) => {
-    ipcMain.on(UPDATECOMPONENT, (event, info: Info) => {
-        const { id, child, source, pos, updateSelf, prepend } = info;
-        const parentVm: Vm = virtual_module.get(replaceVmPrefix(id))!;
-        // 支持修改本身组件名
-        if (updateSelf) {
-            const s = new MagicString(source);
-            const ast = sfcParse(source);
-            markDirectiveViaAst(ast, s);
-            parentVm.source = s.toString();
-            server.send('getVm', stringify(virtual_module));
-            // TODO: 这里是强制更新app，但是更新的是全部，好像没有定点更新
-            // 新增props的时候，需要刷新下，不然挂载不上去，vite的问题
-            viteServer.send(`${VmProfix}${parentVm.path}`);
+    ipcMain.on(ADDCOMPONENTBYDRAG, (event, info: Info) => {
+        const { id, pos, child, prepend } = info;
+        if (replaceVmPrefix(id) === child) {
+            event.reply(TIPS, 'can not insert to itself');
             return;
         }
+        const parentVm: Vm = virtual_module.get(replaceVmPrefix(id))!;
+        if (!parentVm) {
+            event.reply(TIPS, 'can not insert third part component');
+            return;
+        }
+        const sonVm: Vm = virtual_module.get(child)!;
+        // 支持修改本身组件名
         const s = new MagicString(parentVm.source);
         const ast = sfcParse(parentVm.source);
 
-        const childWithoutExt = child.split('.')[0];
+        // 如果解开这个的话，那么会造成循环引用，还有vue组件本身的循环引用，想想怎么处理掉
+        // 命名一致，得提示是否覆盖，如果覆盖，则继续，否则让用户修改
+        parentVm.childComponent?.set(child, sonVm);
+
+        // TODO: 
+        // 公共工具方法
+        // 接口们
+        // 类似谷歌浏览器的devtool工具
+        // 是否有循环引入，有向图
+        // 是否要支持多入口
+        // 如何修改入口，比如vue.use这类
+
+
+
+        const childWithoutExt = (child.split(sep).pop() as string).split(
+            '.'
+        )[0];
         const tag = childWithoutExt
             .split('-')
             .map((c) => c[0].toUpperCase() + c.slice(1))
             .join('');
-        const { dir, name } = parse(id);
 
-        const sonPath = join(
-            replaceVmPrefix(dir),
-            name,
-            `${childWithoutExt}.vue`
-        );
-        const sonVm: Vm = createVm({
-            path: sonPath,
-            source: source,
-            childComponent: new Map()
-        });
-
-        virtual_module.set(sonPath, sonVm);
-
-        // 命名一致，得提示是否覆盖，如果覆盖，则继续，否则让用户修改
-        parentVm.childComponent?.set(sonPath, sonVm);
-
-        const importStatement = `import ${tag} from '${VmProfix}${sonPath}'`;
+        const importStatement = `import ${tag} from '${VmProfix}${child}'`;
 
         const {
             start: tStart,
@@ -97,19 +93,11 @@ export default ({
             const ast = sfcParse(parentVm.source);
             markDirectiveViaAst(ast, s2);
             parentVm.source = s2.toString();
-            // 通知变动的组件
-            event.reply(
-                GETALLCOM,
-                [...virtual_module.values()]
-                    .map((vm) => vm.path)
-                    .filter((p) => p !== '/src/page/mainContent.vue')
-            );
-            // 这里可以加入组件内容，然后吐给app.vue，让他显示并且提供拖拽
-            server.send('getVm', stringify(virtual_module));
             viteServer.send(`${VmProfix}${parentVm.path}`);
         } else {
             console.log('不存在啊');
         }
+        server.send('getVm', stringify(virtual_module));
     });
 };
 

@@ -8,11 +8,11 @@ type Data = Record<string, unknown>;
 export default {
     install: (app: App) => {
         app.config.globalProperties.$openEditor = (
-            param: VNodeProps | Data
+            props: VNodeProps | Data
         ) => {
             const container: HTMLElement = document.createElement('div');
 
-            const vm: VNode = createVNode(Index, param);
+            const vm: VNode = createVNode(Index, props);
             render(vm, container);
             (vm.props = vm.props || {}).onDestroy = () => {
                 render(null, container);
