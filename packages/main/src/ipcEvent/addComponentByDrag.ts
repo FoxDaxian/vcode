@@ -48,8 +48,12 @@ export default ({
         parentVm.childComponent?.set(child, sonVm);
 
         // TODO: 
-        // 公共工具方法
-        // 接口们
+        // 公共工具方法 done
+        // 接口们 done
+        // 导出 done
+        // 数据库
+        // 拖动上传资源，然后可以加载
+        // 高亮
         // 类似谷歌浏览器的devtool工具
         // 是否有循环引入，有向图
         // 是否要支持多入口

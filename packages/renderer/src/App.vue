@@ -248,45 +248,28 @@ async function addRoute($event, info) {
                     const source = await getComSource('', false);
                     openEditor({
                         source,
-                        insertOrNew: 'insert',
+                        isModifyRoute: true,
                         updateSelf: false,
                         parentRoutePath: path,
                         parentRouteName: router
                             .getRoutes()
                             .filter((route) => route.path === path)[0].name,
-                        onConfirm: comOrRouterConfirm
+                        onConfirm: addRouteTopage
                     });
                 }
-            },
+            }
             // TODO: 删 改 + 整体数据库 数据库是否也要加一个版本控制？因为没有git了
             // 增加了props后hmr更新还是有问题
             // 对了，git咋集成呢。。 利用gitignore
             // 或者说git提交的是虚拟文件 + 产出的结果，而不是传统的那种文件内容了
             // 看来必须得是产出的结果，不然code review的时候不太好看啊
-            {
-                label: 'delete route',
-                async callback() {
-                    const { path } = info;
-                    const source = await getComSource('', false);
-                    openEditor({
-                        source,
-                        insertOrNew: 'delete',
-                        updateSelf: false,
-                        parentRoutePath: path,
-                        parentRouteName: router
-                            .getRoutes()
-                            .filter((route) => route.path === path)[0].name,
-                        onConfirm: comOrRouterConfirm
-                    });
-                }
-            }
         ]
     });
 }
 
 async function addUtil() {
     openEditor({
-        source: 'export default {name: 123}',
+        source: '',
         updateSelf: false,
         onConfirm({ info }) {
             const { child, source } = info;
@@ -366,7 +349,7 @@ async function modify() {
         const { id } = getComponentInfo(selectEl);
         const source = await getComSource(id, true);
         if (source) {
-            openEditor({ id, source, onConfirm: comOrRouterConfirm });
+            openEditor({ id, source, onConfirm: modifyComponent });
         } else {
             ElMessage({
                 message: 'can not find component',
@@ -374,7 +357,7 @@ async function modify() {
             });
         }
     } catch (e) {
-        console.log('can not find component');
+        console.log(e);
     }
 }
 async function append() {
@@ -388,7 +371,7 @@ async function append() {
             source,
             pos,
             updateSelf: false,
-            onConfirm: comOrRouterConfirm
+            onConfirm: modifyComponent
         });
     } else {
         ElMessage({
@@ -409,7 +392,7 @@ async function prepend() {
             pos,
             updateSelf: false,
             prepend: true,
-            onConfirm: comOrRouterConfirm
+            onConfirm: modifyComponent
         });
     } else {
         ElMessage({
@@ -419,50 +402,40 @@ async function prepend() {
     }
 }
 
-function comOrRouterConfirm({
-    insertOrNew,
-    parentRoutePath,
-    parentRouteName,
-    id,
-    pos,
-    updateSelf,
-    prepend,
-    info
-}) {
-    if (insertOrNew) {
-        window.ipc.send(UPDATEROUTER, {
-            ...info,
-            insertOrNew,
-            parentRoutePath
-        });
-        const routePath = parentRoutePath + info.routePath;
-        let vmBasePath = `${VmProfix}${PAGEPATH}${parentRoutePath}`;
-        vmBasePath = vmBasePath.endsWith('/') ? vmBasePath : vmBasePath + '/';
-        router.addRoute(parentRouteName, {
-            name: info.routeName,
-            path: routePath,
-            component: () =>
-                import(/* @vite-ignore */ `${vmBasePath}${info.child}.vue`)
-        });
-        const newRoute = router
-            .getRoutes()
-            .filter((route) => route.path === routePath)[0];
-        if (!newRoute) {
-            console.log('插入新路由失败，请重试');
-        }
-        const parentRoute = getParentRoute(routerConf.value, parentRoutePath);
-        parentRoute.children.push(newRoute);
-    } else {
-        window.ipc.send(UPDATECOMPONENT, {
-            ...info,
-            id,
-            pos,
-            updateSelf,
-            prepend,
-            insertOrNew,
-            parentRoutePath
-        });
+function addRouteTopage({ isModifyRoute, parentRoutePath, parentRouteName, info }) {
+    window.ipc.send(UPDATEROUTER, {
+        ...info,
+        isModifyRoute,
+        parentRoutePath
+    });
+    const routePath = parentRoutePath + info.routePath;
+    let vmBasePath = `${VmProfix}${PAGEPATH}${parentRoutePath}`;
+    vmBasePath = vmBasePath.endsWith('/') ? vmBasePath : vmBasePath + '/';
+    // 新增路由
+    router.addRoute(parentRouteName, {
+        name: info.routeName,
+        path: routePath,
+        component: () =>
+            import(/* @vite-ignore */ `${vmBasePath}${info.child}.vue`)
+    });
+    const newRoute = router
+        .getRoutes()
+        .filter((route) => route.path === routePath)[0];
+    if (!newRoute) {
+        console.log('插入新路由失败，请重试');
     }
+    const parentRoute = getParentRoute(routerConf.value, parentRoutePath);
+    parentRoute.children.push(newRoute);
+}
+
+function modifyComponent({ id, pos, updateSelf, prepend, info }) {
+    window.ipc.send(UPDATECOMPONENT, {
+        ...info,
+        id,
+        pos,
+        updateSelf,
+        prepend
+    });
 }
 
 function openEditor({
@@ -471,13 +444,13 @@ function openEditor({
     pos = [],
     updateSelf = true,
     prepend = false,
-    insertOrNew = '',
+    isModifyRoute = '',
     parentRoutePath = '',
     parentRouteName = '',
     onConfirm = noop
 }) {
     const closeEditor = app.$openEditor({
-        insertOrNew,
+        isModifyRoute,
         parentRoutePath,
         id: updateSelf ? id : '',
         sourceText: source,
@@ -487,7 +460,7 @@ function openEditor({
                 pos,
                 updateSelf,
                 prepend,
-                insertOrNew,
+                isModifyRoute,
                 parentRoutePath,
                 parentRouteName,
                 info
@@ -548,7 +521,7 @@ async function getComSource(id, updateSelf) {
         }
         return source;
     } catch (e) {
-        console.log('can not find component');
+        console.log(e);
     }
 }
 
@@ -565,7 +538,7 @@ async function getUtilSource(id) {
             )
         ).default;
     } catch (e) {
-        console.log('can not find component');
+        console.log(e);
     }
 }
 

@@ -15,6 +15,8 @@ import Client from '../utils/socket/Client.js';
 
 const { chrome } = vendorsConfig;
 
+const pageRootPath = '/src/components';
+
 const defaultCom = [
     '<template>',
     '    <div>未找到对应组件，请检查后重试</div>',
@@ -72,8 +74,8 @@ const config = {
         }
     },
     define: {
-        PAGEPATH: JSON.stringify(join('/src/page')),
-        ROOTCOM: JSON.stringify(join(VmProfix, 'src/page/mainContent.vue'))
+        PAGEPATH: JSON.stringify(join(pageRootPath)),
+        ROOTCOM: JSON.stringify(join(VmProfix, `${pageRootPath}/mainContent.vue`))
     },
     plugins: [
         {

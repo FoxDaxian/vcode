@@ -1,15 +1,15 @@
 <template>
-    <div class="editor-wrap" v-if="visible">
+    <div class="editor-wrap" v-if="visible" @keydown="keyPress">
         <div class="header-info">
             <ElInput
-                v-if="insertOrNew"
+                v-if="isModifyRoute"
                 placeholder="route path"
                 v-model="routePath"
             >
                 <template #prepend>{{ parentRoutePath }}</template>
             </ElInput>
             <ElInput
-                v-if="insertOrNew"
+                v-if="isModifyRoute"
                 placeholder="route name"
                 v-model="routeName"
             ></ElInput>
@@ -28,11 +28,11 @@
 </template>
 <script lang="ts" setup>
 import { ElInput } from 'element-plus';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import Base from './base.vue';
 
 const props = defineProps([
-    'insertOrNew',
+    'isModifyRoute',
     'parentRoutePath',
     'id',
     'sourceText',
@@ -51,6 +51,7 @@ const close = () => {
     visible.value = false;
     emit('destroy');
 };
+const prev = ref('');
 const code = ref<string>(props.sourceText);
 function getResult(result) {
     code.value = result;
@@ -60,13 +61,33 @@ const ipcUpdate = () => {
     if (!componentName.value) {
         return;
     }
+    if (!props.isModifyRoute && prev.value === code.value) {
+        return;
+    }
     props.update({
         routePath: routePath.value,
         routeName: routeName.value,
         child: componentName.value,
         source: code.value
     });
+    prev.value = code.value;
 };
+function save($event) {
+    const c = $event.ctrlKey || $event.metaKey;
+    const s = $event.which === 83;
+    if (c && s) {
+        ipcUpdate();
+    }
+}
+function quit($event) {
+    if ($event.which === 27) {
+        props.cancel();
+    }
+}
+function keyPress($event) {
+    save($event);
+    quit($event);
+}
 </script>
 <style lang="less" scoped>
 .editor-wrap {

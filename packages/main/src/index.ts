@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu, MenuItem } from 'electron';
 import { join } from 'path';
 import sfc2source from './sfc2source';
 import { fork } from 'child_process';
@@ -6,18 +6,22 @@ import Server from '../../utils/socket/Server.js';
 import createVm from './utils/createVm';
 import stringify from './utils/stringify';
 import comTemp from './utils/comTemp';
+import { build } from './utils/shortcut';
 import ipcRouter from './ipcEvent/router';
 import ipcComponent from './ipcEvent/component';
 import ipcCommonUtils from './ipcEvent/commonUtils';
 import ipcAddComponentByDrag from './ipcEvent/addComponentByDrag';
 import ipcFreshCache from './ipcEvent/freshCache';
 import { GETALLCOM, GETALLUTIL } from '../../utils/const/index';
+// 生成模板
+import renderProject from './utils/template/';
 
 const virtual_module = new Map<string, Vm>();
 const virtual_util = new Map<string, Util>();
+const routerConfig = new Set<RouterConfig>(); // 路由配置
 
 // 根组件
-const pageRootPath = '/src/page';
+const pageRootPath = '/src/components';
 const rootModulePath = join(pageRootPath, 'mainContent.vue');
 const rootModule: Vm = createVm({
     path: rootModulePath,
@@ -45,6 +49,39 @@ let url = '0.0.0.0';
 const viteServer = fork(join(root, 'packages/main/viteProcess/child.js'), {
     execArgv: ['--experimental-specifier-resolution=node']
 });
+
+const template = [
+    new MenuItem({
+        label: 'Electron',
+        submenu: [
+            {
+                label: 'help',
+                click: () => {
+                    console.log('Electron rocks!');
+                }
+            }
+        ]
+    }),
+    new MenuItem({
+        label: 'more',
+        submenu: [
+            {
+                label: 'build',
+                accelerator: build,
+                click: () => {
+                    renderProject({
+                        root,
+                        virtual_module,
+                        virtual_util,
+                        routerConfig
+                    });
+                }
+            }
+        ]
+    })
+];
+
+Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 
 viteServer.on(
     'message',
@@ -78,9 +115,11 @@ const createWindow = async () => {
     });
 
     ipcRouter({
+        routerConfig,
         virtual_module,
         server,
-        pageRootPath
+        pageRootPath,
+        rootModulePath
     });
 
     ipcAddComponentByDrag({
@@ -92,7 +131,8 @@ const createWindow = async () => {
     ipcComponent({
         virtual_module,
         server,
-        viteServer
+        viteServer,
+        pageRootPath
     });
     ipcFreshCache({
         viteServer
@@ -117,7 +157,7 @@ const createWindow = async () => {
             GETALLCOM,
             [...virtual_module.values()]
                 .map((vm) => vm.path)
-                .filter((p) => p !== '/src/page/mainContent.vue')
+                .filter((p) => p !== rootModulePath)
         );
         mainWindow?.webContents.send(
             GETALLUTIL,

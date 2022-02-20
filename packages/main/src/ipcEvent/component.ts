@@ -21,10 +21,12 @@ import type {
 
 export default ({
     virtual_module,
+    pageRootPath,
     server,
     viteServer
 }: {
     virtual_module: Map<string, Vm>;
+    pageRootPath: string;
     server: SocketBase;
     viteServer: ChildProcess;
 }) => {
@@ -102,7 +104,7 @@ export default ({
                 GETALLCOM,
                 [...virtual_module.values()]
                     .map((vm) => vm.path)
-                    .filter((p) => p !== '/src/page/mainContent.vue')
+                    .filter((p) => p !== pageRootPath)
             );
             // 这里可以加入组件内容，然后吐给app.vue，让他显示并且提供拖拽
             server.send('getVm', stringify(virtual_module));

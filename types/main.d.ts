@@ -5,7 +5,7 @@ declare interface Info {
     prepend?: boolean;
     source: string;
     child: string; // 拖拽式添加的时候是path，其他情况是新增的子组件名
-    insertOrNew?: string;
+    isModifyRoute?: boolean;
     parentRoutePath?: string;
     routePath?: string;
     routeName?: string;
@@ -14,10 +14,10 @@ declare interface Info {
 declare interface RouteInfo {
     source: string;
     child: string;
-    insertOrNew?: string;
-    parentRoutePath?: string;
-    routePath?: string;
-    routeName?: string;
+    isModifyRoute: boolean;
+    parentRoutePath: string;
+    routePath: string;
+    routeName: string;
 }
 
 declare const PAGEPATH: string;
@@ -28,6 +28,12 @@ declare interface Vm {
     path: string;
     source: string;
     childComponent?: Map<string, Vm>;
+}
+
+declare interface RouterConfig {
+    path: string;
+    name: string;
+    component: string;
 }
 
 declare interface Util {
