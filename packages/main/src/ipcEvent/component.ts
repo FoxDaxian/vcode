@@ -21,12 +21,12 @@ import type {
 
 export default ({
     virtual_module,
-    pageRootPath,
+    rootModulePath,
     server,
     viteServer
 }: {
     virtual_module: Map<string, Vm>;
-    pageRootPath: string;
+    rootModulePath: string;
     server: SocketBase;
     viteServer: ChildProcess;
 }) => {
@@ -69,7 +69,7 @@ export default ({
         virtual_module.set(sonPath, sonVm);
 
         // 命名一致，得提示是否覆盖，如果覆盖，则继续，否则让用户修改
-        parentVm.childComponent?.set(sonPath, sonVm);
+        parentVm?.childComponent?.set && parentVm?.childComponent?.set(sonPath, sonVm);
 
         const importStatement = `import ${tag} from '${VmProfix}${sonPath}'`;
 
@@ -104,7 +104,7 @@ export default ({
                 GETALLCOM,
                 [...virtual_module.values()]
                     .map((vm) => vm.path)
-                    .filter((p) => p !== pageRootPath)
+                    .filter((p) => p !== rootModulePath)
             );
             // 这里可以加入组件内容，然后吐给app.vue，让他显示并且提供拖拽
             server.send('getVm', stringify(virtual_module));

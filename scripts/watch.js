@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
-import { build, createLogger } from 'vite'; 
+import { build, createLogger } from 'vite';
 import electronPath from 'electron';
 import { spawn } from 'child_process';
+import readline from 'readline';
+console.log(process.cwd());
 
 /** @type 'production' | 'development'' */
 const mode = (process.env.MODE = process.env.MODE || 'development');
@@ -46,31 +48,43 @@ const getWatcher = ({ name, configFile, writeBundle }) => {
  * @param {import('vite').ViteDevServer} viteDevServer
  * @returns {Promise<import('vite').RollupOutput | Array<import('vite').RollupOutput> | import('vite').RollupWatcher>}
  */
+/** @type {ChildProcessWithoutNullStreams | null} */
+let spawnProcess = null;
 const setupMainPackageWatcher = () => {
     const logger = createLogger(LOG_LEVEL, {
         prefix: '[main]'
     });
-
-    /** @type {ChildProcessWithoutNullStreams | null} */
-    let spawnProcess = null;
 
     return getWatcher({
         name: 'reload-app-on-main-package-change',
         configFile: 'packages/main/vite.config.js',
         writeBundle() {
             if (spawnProcess !== null) {
+                spawnProcess.send('closeVite');
                 spawnProcess.kill('SIGINT');
                 spawnProcess = null;
             }
 
-            spawnProcess = spawn(String(electronPath), ['--disable-http-cache​', '.']);
-
-            spawnProcess.stdout.on(
-                'data',
-                (d) =>
-                    d.toString().trim() &&
-                    logger.warn(d.toString(), { timestamp: true })
+            spawnProcess = spawn(
+                String(electronPath),
+                ['--disable-http-cache​', '.'],
+                {
+                    stdio: [null, null, null, 'ipc']
+                }
             );
+            // cmd c回调，以防多个vite服务
+            spawnProcess.on('message', (m) => {
+                if (m === 'success') {
+                    spawnProcess.kill('SIGINT');
+                    spawnProcess = null;
+                    process.exit(0);
+                }
+            });
+
+            spawnProcess.stdout.on('data', (d) => {
+                d.toString().trim() &&
+                    logger.warn(d.toString(), { timestamp: true });
+            });
             spawnProcess.stderr.on('data', (d) => {
                 const data = d.toString().trim();
                 if (!data) return;
@@ -108,3 +122,30 @@ const setupPreloadPackageWatcher = () => {
         process.exit(1);
     }
 })();
+
+// 监听后会阻止默认行为，需要手动添加上，然后推出的时候通知到主进程进行关闭操作
+// process.on('SIGINT', function () {
+//     console.log('监听 cmd + c');
+//     console.log('Caught interrupt signal');
+//     process.exit(0);
+// });
+// process.on('SIGTERM', function () {
+//     console.log('SIGTERM');
+//     process.exit(0);
+// });
+// process.on('SIGQUIT', function () {
+//     console.log('SIGQUIT');
+//     process.exit(0);
+// });
+
+readline.emitKeypressEvents(process.stdin);
+
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+
+process.stdin.on('keypress', (chunk, key) => {
+    if (key && key.ctrl && key.name === 'c') {
+        if (spawnProcess !== null) {
+            spawnProcess.send('close');
+        }
+    }
+});

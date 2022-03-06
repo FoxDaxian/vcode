@@ -39,5 +39,5 @@ declare interface RouterConfig {
 declare interface Util {
     path: string;
     source: string;
-    childComponent?: Map<string, Vm>;
+    // childComponent?: Map<string, Util>;
 }

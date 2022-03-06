@@ -1,5 +1,9 @@
 import { ipcMain } from 'electron';
-import { UPDATEROUTER, GETALLCOM } from '../../../utils/const/index';
+import {
+    UPDATEROUTER,
+    GETALLCOM,
+    GETALLROUTER
+} from '../../../utils/const/index';
 import createVm from '../utils/createVm';
 import stringify from '../utils/stringify';
 import type SocketBase from '../../../utils/socket/SockeBase';
@@ -18,6 +22,9 @@ export default ({
     virtual_module: Map<string, Vm>;
     server: SocketBase;
 }) => {
+    ipcMain.on(GETALLROUTER, (event) => {
+        event.reply(GETALLROUTER, [...routerConfig]);
+    });
     ipcMain.on(UPDATEROUTER, (event, info: RouteInfo) => {
         const { child, source, parentRoutePath, routeName, routePath } = info;
         // about router

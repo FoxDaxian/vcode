@@ -55,7 +55,8 @@ import {
     FRESHCACHE,
     ADDCOMPONENTBYDRAG,
     UPDATECOMMONUTILS,
-    TIPS
+    TIPS,
+    GETALLROUTER
 } from '../../utils/const/';
 import RouterMenu from './components/routerMenu/index.vue';
 import ComponentsView from './components/componentsView/index.vue';
@@ -134,6 +135,21 @@ const matchPath = computed(() => {
 // 从数据库初始化，然后就在这里一直更新，某个时机同步到数据库即可
 // 路由对应获取组件部分可能有问题
 const routerConf = ref<RouteRecordNormalized[]>(initRoutes());
+
+// 获取数据库存储的内容
+window.ipc.send(GETALLROUTER);
+window.ipc.on(GETALLROUTER, (event, data) => {
+    for (const route of data) {
+        router.addRoute(routerConf.value[0].name, {
+            name: route.routeName,
+            path: route.path,
+            component: () =>
+                import(/* @vite-ignore */ `${VmProfix}${route.component}`)
+        });
+        routerConf.value[0].children.push(route);
+    }
+});
+
 const componentName = ref();
 const instanceStates = ref([]);
 
@@ -165,8 +181,10 @@ function comDragMove(x, y, dragedComPath) {
     }
 }
 function comDragUp(x, y, dragedComPath) {
-    lastEl.classList.remove('prepend');
-    lastEl.classList.remove('append');
+    if (lastEl) {
+        lastEl.classList.remove('prepend');
+        lastEl.classList.remove('append');
+    }
     let el = document.elementFromPoint(x, y);
 
     if (!memoData.rootCom.contains(el)) {
@@ -402,7 +420,12 @@ async function prepend() {
     }
 }
 
-function addRouteTopage({ isModifyRoute, parentRoutePath, parentRouteName, info }) {
+function addRouteTopage({
+    isModifyRoute,
+    parentRoutePath,
+    parentRouteName,
+    info
+}) {
     window.ipc.send(UPDATEROUTER, {
         ...info,
         isModifyRoute,

@@ -1,4 +1,4 @@
-const isMac = process.platform === 'darwin';
+export const isMac = process.platform === 'darwin';
 
 export const alt = 'Alt';
 export const shift = 'Shift';

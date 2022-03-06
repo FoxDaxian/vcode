@@ -9,23 +9,19 @@ import renderTsconf from './tsconfig.json';
 import renderTsconfNode from './tsconfig.node.json';
 import renderVite from './vite.config.ts';
 import gitignore from './gitignore';
+import { getBuildOutputPath } from '../path';
 
 export default ({
-    root,
     virtual_module,
     virtual_util,
     routerConfig
 }: {
-    root: string;
     virtual_module: Map<string, Vm>;
     virtual_util: Map<string, Util>;
     routerConfig: Set<RouterConfig>;
 }) => {
-    const basePath = join(root, 'source');
-    const srcPath = join(basePath, 'src');
-    const componentsPath = join(srcPath, 'components');
-    const utilsPath = join(srcPath, 'utils');
-    const routerPath = join(srcPath, 'router');
+    const { basePath, srcPath, componentsPath, utilsPath, routerPath } =
+        getBuildOutputPath();
     [componentsPath, utilsPath, routerPath].forEach((p) => {
         if (!existsSync(p)) {
             mkdirSync(p, { recursive: true });

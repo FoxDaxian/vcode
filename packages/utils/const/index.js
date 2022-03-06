@@ -13,6 +13,7 @@ export const UPDATECOMPONENT = 'update-component';
 export const UPDATEROUTER = 'update-router';
 export const FRESHCACHE = 'fresh-cache';
 export const PROCESSFRESHCACHE = `#${FRESHCACHE}#`
+export const GETALLROUTER = 'get-all-router';
 export const GETALLCOM = 'get-all-com';
 export const GETALLUTIL = 'get-all-util';
 export const ADDCOMPONENTBYDRAG = 'add-component-by-drag';

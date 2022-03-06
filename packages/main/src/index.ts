@@ -6,15 +6,16 @@ import Server from '../../utils/socket/Server.js';
 import createVm from './utils/createVm';
 import stringify from './utils/stringify';
 import comTemp from './utils/comTemp';
-import { build } from './utils/shortcut';
+import { build, isMac } from './utils/shortcut';
 import ipcRouter from './ipcEvent/router';
 import ipcComponent from './ipcEvent/component';
 import ipcCommonUtils from './ipcEvent/commonUtils';
 import ipcAddComponentByDrag from './ipcEvent/addComponentByDrag';
 import ipcFreshCache from './ipcEvent/freshCache';
 import { GETALLCOM, GETALLUTIL } from '../../utils/const/index';
-// 生成模板
 import renderProject from './utils/template/';
+import { viteProcessPath } from './utils/path';
+import { RouterDb, ModuleDb, UtilDb } from './db';
 
 const virtual_module = new Map<string, Vm>();
 const virtual_util = new Map<string, Util>();
@@ -29,6 +30,10 @@ const rootModule: Vm = createVm({
 });
 virtual_module.set(rootModule.path, rootModule);
 
+const moduleDb = new ModuleDb(virtual_module);
+const utilDb = new UtilDb(virtual_util);
+const routerDb = new RouterDb(routerConfig);
+
 // ipc
 const server = new Server();
 
@@ -41,13 +46,25 @@ server.connect().then(() => {
     });
 });
 
-const root = join(__dirname, '../../../');
-
 const isDevelopment = import.meta.env.MODE === 'development';
 
+// 为什么会有多个呢？因为重启后导致的
 let url = '0.0.0.0';
-const viteServer = fork(join(root, 'packages/main/viteProcess/child.js'), {
+const viteServer = fork(viteProcessPath, {
     execArgv: ['--experimental-specifier-resolution=node']
+});
+// development环境下，监听 cmd c，以便于数据库同步
+process.on('message', async (m) => {
+    if (m === 'closeVite') {
+        viteServer.kill('SIGINT');
+    } else if (m === 'close') {
+        // TODO: 开发环境的数据库存储好了，还差定时收集 退出收集 崩溃收集 等？有等等么?
+        await moduleDb.collect();
+        await utilDb.collect();
+        await routerDb.collect();
+        process.send &&
+            process.send(viteServer.kill('SIGINT') ? 'success' : 'fail');
+    }
 });
 
 const template = [
@@ -70,7 +87,6 @@ const template = [
                 accelerator: build,
                 click: () => {
                     renderProject({
-                        root,
                         virtual_module,
                         virtual_util,
                         routerConfig
@@ -90,7 +106,17 @@ viteServer.on(
             case 'listening':
                 console.log('服务监听成功...');
                 url = data.payload.url;
-                appStart();
+                // 路由数据更新
+                Promise.all([
+                    moduleDb.getData(),
+                    utilDb.getData(),
+                    routerDb.getData()
+                ]).then(([m, u, r]) => {
+                    m?.d?.forEach((_) => virtual_module.set(..._));
+                    u?.d?.forEach((_) => virtual_util.set(..._));
+                    r?.d?.forEach((_) => routerConfig.add(_));
+                    appStart();
+                });
                 break;
             default:
                 break;
@@ -132,7 +158,7 @@ const createWindow = async () => {
         virtual_module,
         server,
         viteServer,
-        pageRootPath
+        rootModulePath
     });
     ipcFreshCache({
         viteServer
@@ -169,8 +195,49 @@ const createWindow = async () => {
         }
     });
 
+    // app.on('activate', () => {
+    //     console.log('点击图标的时候');
+    //     mainWindow?.show();
+    // });
+    // electron 程序保护（崩溃监控，托盘关闭？）
+    // 这个时机收集数据
+    // 每隔几分钟收集一次
+    mainWindow.webContents.on('crashed', () => {
+        console.log('崩溃了');
+    });
+
+    // mainWindow.on('close', (e) => {
+    //     e.preventDefault();
+    //     mainWindow?.hide();
+    //     console.log('electron close调了');
+    // });
+
     await mainWindow.loadURL(url);
 };
+
+app.on('quit', () => {
+    console.log('quit事件');
+});
+
+app.on('window-all-closed', () => {
+    if (!isMac) {
+        app.quit();
+    }
+    console.log('window all closed事件触发了');
+});
+app.on('before-quit', () => {
+    console.log('关闭前触发的');
+});
+
+// process.on('SIGINT', function () {
+//     console.log('Caught interrupt signal');
+// });
+// process.on('SIGTERM', function () {
+//     console.log('SIGTERM');
+// });
+// process.on('SIGQUIT', function () {
+//     console.log('SIGQUIT');
+// });
 
 app.on('second-instance', () => {
     // Someone tried to run a second instance, we should focus our window.
@@ -180,17 +247,7 @@ app.on('second-instance', () => {
     }
 });
 
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
-
 function appStart() {
-    app.whenReady()
-        .then(createWindow)
-        .catch((e) => console.error('Failed create window:', e));
-
     // Auto-updates
     if (import.meta.env.PROD) {
         app.whenReady()
@@ -198,6 +255,10 @@ function appStart() {
             .then(({ autoUpdater }) => autoUpdater.checkForUpdatesAndNotify())
             .catch((e) => console.error('Failed check updates:', e));
     }
+    return app
+        .whenReady()
+        .then(createWindow)
+        .catch((e) => console.error('Failed create window:', e));
 }
 
 // 是否启动单实例

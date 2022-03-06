@@ -110,7 +110,7 @@ const config = {
                         return null;
                     }
                     return (
-                        vm.get(pathname.replace(VmProfix, '')).source ||
+                        vm.get(pathname.replace(VmProfix, ''))?.source ||
                         defaultCom
                     );
                 }
