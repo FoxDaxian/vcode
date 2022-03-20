@@ -2,6 +2,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { Low, JSONFile } from 'lowdb';
 import { getBasePath } from '../utils/path';
+import levenshtein from 'js-levenshtein';
 
 export type Vm_Map = Map<string, Vm>;
 export type Util_Map = Map<string, Util>;
@@ -22,7 +23,8 @@ type Json<T> = { d?: T };
 
 export interface DB<T> {
     collect(): void;
-    _toString(): string;
+    stringify(): string;
+    stringifyFile(): Promise<string>;
     getData(): Promise<Json<T> | null>;
     writeData(d: DataOrigin): Promise<void>;
 }
@@ -37,17 +39,28 @@ export default class Base<T extends DataOrigin> implements DB<MapOrSet2Arr<T>> {
         this.ensureBasePath();
         this.d = d;
         this.db = this.init(file);
-        this.db.read().then(async () => {
-            this.db.data = this.db.data || {};
-            await this.db.write();
-            this.initCompleted = true;
-        });
-
-        // this.autoCollect(10 * 1000);
+        this.db
+            .read()
+            .then(
+                () => {
+                    /** */
+                },
+                () => {
+                    /** */
+                }
+            )
+            .finally(async () => {
+                this.db.data = this.db.data || {};
+                await this.db.write();
+                this.initCompleted = true;
+                this.autoCollect(10 * 1000, 1000);
+            });
     }
 
-    // diff
-    _toString() {
+    stringify() {
+        return '';
+    }
+    async stringifyFile() {
         return '';
     }
 
@@ -67,16 +80,27 @@ export default class Base<T extends DataOrigin> implements DB<MapOrSet2Arr<T>> {
         this.writeData(this.d);
     }
 
-    private autoCollect(times: number) {
-        console.log(this._toString.toString());
-        // 十分钟，至少1000个改变，才会更新数据库
-        // map2str, set2str 利用这俩搞比对
+    private async autoCollect(times: number, minLen: number) {
+        try {
+            setInterval(async () => {
+                const fileContent = await this.stringifyFile();
+                const content = this.stringify();
+                const diffLen = levenshtein(fileContent, content);
+                if (diffLen > minLen) {
+                    this.collect();
+                }
+            }, times);
+        } catch (e) {
+            console.log(e);
+        }
     }
 
     getData() {
         return new Promise<Json<MapOrSet2Arr<T>> | null>((res) => {
             if (this.initCompleted) {
-                res(this.db.data);
+                this.db.read().then(() => {
+                    res(this.db.data);
+                });
                 return;
             }
             process.nextTick(() => {

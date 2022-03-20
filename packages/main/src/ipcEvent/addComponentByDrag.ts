@@ -45,7 +45,7 @@ export default ({
 
         // 如果解开这个的话，那么会造成循环引用，还有vue组件本身的循环引用，想想怎么处理掉
         // 命名一致，得提示是否覆盖，如果覆盖，则继续，否则让用户修改
-        parentVm.childComponent?.set(child, sonVm);
+        parentVm.childComponent?.set && parentVm.childComponent?.set(child, sonVm);
 
         // TODO: 
         // 公共工具方法 done

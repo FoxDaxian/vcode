@@ -48,23 +48,10 @@ server.connect().then(() => {
 
 const isDevelopment = import.meta.env.MODE === 'development';
 
-// 为什么会有多个呢？因为重启后导致的
+// 为什么会有多个呢？因为重启后导致的（是的）
 let url = '0.0.0.0';
 const viteServer = fork(viteProcessPath, {
     execArgv: ['--experimental-specifier-resolution=node']
-});
-// development环境下，监听 cmd c，以便于数据库同步
-process.on('message', async (m) => {
-    if (m === 'closeVite') {
-        viteServer.kill('SIGINT');
-    } else if (m === 'close') {
-        // TODO: 开发环境的数据库存储好了，还差定时收集 退出收集 崩溃收集 等？有等等么?
-        await moduleDb.collect();
-        await utilDb.collect();
-        await routerDb.collect();
-        process.send &&
-            process.send(viteServer.kill('SIGINT') ? 'success' : 'fail');
-    }
 });
 
 const template = [
@@ -112,7 +99,11 @@ viteServer.on(
                     utilDb.getData(),
                     routerDb.getData()
                 ]).then(([m, u, r]) => {
-                    m?.d?.forEach((_) => virtual_module.set(..._));
+                    // 暂时未考虑child，直接重置为map or set
+                    m?.d?.forEach((_) => {
+                        _[1].childComponent = new Map();
+                        virtual_module.set(..._);
+                    });
                     u?.d?.forEach((_) => virtual_util.set(..._));
                     r?.d?.forEach((_) => routerConfig.add(_));
                     appStart();
@@ -195,22 +186,9 @@ const createWindow = async () => {
         }
     });
 
-    // app.on('activate', () => {
-    //     console.log('点击图标的时候');
-    //     mainWindow?.show();
-    // });
-    // electron 程序保护（崩溃监控，托盘关闭？）
-    // 这个时机收集数据
-    // 每隔几分钟收集一次
     mainWindow.webContents.on('crashed', () => {
         console.log('崩溃了');
     });
-
-    // mainWindow.on('close', (e) => {
-    //     e.preventDefault();
-    //     mainWindow?.hide();
-    //     console.log('electron close调了');
-    // });
 
     await mainWindow.loadURL(url);
 };
@@ -219,25 +197,49 @@ app.on('quit', () => {
     console.log('quit事件');
 });
 
-app.on('window-all-closed', () => {
-    if (!isMac) {
-        app.quit();
-    }
-    console.log('window all closed事件触发了');
+app.on('window-all-closed', () => app.quit());
+
+app.on('activate', () => {
+    console.log('重新激活');
 });
-app.on('before-quit', () => {
-    console.log('关闭前触发的');
+app.on('will-quit', () => {
+    console.log('will-quit12332213');
+});
+app.on('before-quit', async (event) => {
+    event.preventDefault();
+    await collectAndShut();
+    app.exit();
+});
+process.on('uncaughtException', async () => {
+    await collectAndShut();
+    process.exit(1);
 });
 
-// process.on('SIGINT', function () {
-//     console.log('Caught interrupt signal');
-// });
-// process.on('SIGTERM', function () {
-//     console.log('SIGTERM');
-// });
-// process.on('SIGQUIT', function () {
-//     console.log('SIGQUIT');
-// });
+async function collect() {
+    await moduleDb.collect();
+    await utilDb.collect();
+    await routerDb.collect();
+}
+async function collectAndShut() {
+    try {
+        await collect();
+        process.send &&
+            process.send(viteServer.kill('SIGINT') ? 'success' : 'fail');
+    } catch (e) {
+        //
+    }
+}
+// development环境下，监听 cmd c，以便于数据库同步
+process.on('message', async (m) => {
+    if (m === 'closeVite') {
+        viteServer.kill('SIGINT');
+    } else if (m === 'close') {
+        // 自定义的文件缺少source map
+        collectAndShut();
+    } else if (m === 'collect') {
+        await collect();
+    }
+});
 
 app.on('second-instance', () => {
     // Someone tried to run a second instance, we should focus our window.

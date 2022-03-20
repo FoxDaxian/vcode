@@ -6,7 +6,13 @@ export class RouterDb<T extends RouterConfig_Set> extends Base<T> {
     constructor(d: T) {
         super(d, 'routerDb.json');
     }
-    _toString() {
+    stringify() {
         return set2str(this.d);
+    }
+    async stringifyFile() {
+        const data = await this.getData();
+        const set = new Set<RouterConfig>();
+        data?.d?.forEach((_) => set.add(_));
+        return set2str(set);
     }
 }

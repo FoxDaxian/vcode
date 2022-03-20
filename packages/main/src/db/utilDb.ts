@@ -6,7 +6,13 @@ export class UtilDb<T extends Util_Map> extends Base<T> {
     constructor(d: T) {
         super(d, 'utilDb.json');
     }
-    _toString() {
+    stringify() {
         return map2str(this.d);
+    }
+    async stringifyFile() {
+        const data = await this.getData();
+        const map = new Map();
+        data?.d?.forEach((_) => map.set(..._));
+        return map2str(map);
     }
 }

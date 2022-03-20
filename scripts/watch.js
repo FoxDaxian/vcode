@@ -4,7 +4,6 @@ import { build, createLogger } from 'vite';
 import electronPath from 'electron';
 import { spawn } from 'child_process';
 import readline from 'readline';
-console.log(process.cwd());
 
 /** @type 'production' | 'development'' */
 const mode = (process.env.MODE = process.env.MODE || 'development');
@@ -35,11 +34,17 @@ const stderrFilterPatterns = [
  * @param name
  * @returns {Promise<import('vite').RollupOutput | Array<import('vite').RollupOutput> | import('vite').RollupWatcher>}
  */
-const getWatcher = ({ name, configFile, writeBundle }) => {
+const getWatcher = (
+    { name, configFile, writeBundle, watchChange } = {
+        watchChange() {
+            /** */
+        }
+    }
+) => {
     return build({
         ...sharedConfig,
         configFile,
-        plugins: [{ name, writeBundle }]
+        plugins: [{ name, writeBundle, watchChange }]
     });
 };
 
@@ -58,6 +63,9 @@ const setupMainPackageWatcher = () => {
     return getWatcher({
         name: 'reload-app-on-main-package-change',
         configFile: 'packages/main/vite.config.js',
+        watchChange() {
+            spawnProcess.send('collect');
+        },
         writeBundle() {
             if (spawnProcess !== null) {
                 spawnProcess.send('closeVite');
